@@ -244,7 +244,7 @@ class RootCauseRanker:
             deg_values = getattr(degraded, name)
             nom_values = getattr(nominal, name)
 
-            # --- 1. Sensor Fault Detection (3+ consecutive zeros or NaNs) ---
+            # Sensor Fault Detection (3+ consecutive zeros or NaNs)
             latest_val = deg_values[-1] if len(deg_values) > 0 else np.nan
             if np.isnan(latest_val) or latest_val == 0.0:
                 self._sensor_dead_counts[name] = self._sensor_dead_counts.get(name, 0) + 1
@@ -254,11 +254,11 @@ class RootCauseRanker:
             if self._sensor_dead_counts[name] >= 3:
                 continue
 
-            # --- 2. Eclipse Awareness ---
+            # Eclipse Awareness
             if is_eclipse and name in ["solar_input", "solar_panel_temp"]:
                 continue
 
-            # --- 3. Direction-Aware Deviation ---
+            # Direction-Aware Deviation
             deg_mean = np.nanmean(deg_values)
             nom_mean = np.nanmean(nom_values)
             residual = deg_mean - nom_mean

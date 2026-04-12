@@ -619,7 +619,7 @@ class Benchmark:
 
         print("\nNote: good calibration means Mean Conf ≈ Actual Acc in each bin.")
 
-    # ── convenience: cause_to_kwargs (static alias for calibration) ────
+    # convenience: cause_to_kwargs (static alias for calibration)
     @staticmethod
     def _cause_to_kwargs(cause: str, severity: float) -> dict:
         if cause == "solar_degradation":

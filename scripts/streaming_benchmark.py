@@ -5,7 +5,7 @@ Measures the time advantage of Aethelix causal inference over a traditional
 fixed-threshold alarm system for solar degradation faults.
 
 Lead-Time Definition
---------------------
+
 Lead time = t_threshold_alarm – t_aethelix_detection
 
 Where:
@@ -19,7 +19,7 @@ threshold alarm. The threshold alarm is guaranteed to miss sub-15% faults
 (lead time = undefined / +∞ advantage).
 
 Methodology
------------
+
 50 scenarios (seed=42), solar degradation 15–40% injected at T=6h.
 Each sample is 10 seconds (0.1 Hz). Results in seconds.
 """
@@ -100,7 +100,6 @@ def run_lead_time_benchmark(num_scenarios: int = 50, seed: int = 42):
                 if deviation > THRESHOLD_FRACTION:
                     t_threshold = t
 
-            # Aethelix detection
             if t_aethelix is None:
                 tick = {
                     "solar_input"    : solar_val,
@@ -127,14 +126,13 @@ def run_lead_time_benchmark(num_scenarios: int = 50, seed: int = 42):
             aethelix_miss += 1
             lead_s = None
         elif t_threshold is None:
-            # Threshold never fired — Aethelix-only detection (infinite advantage)
             threshold_miss += 1
             lead_s = None  # handled separately
         else:
             lead_s = (t_threshold - t_aethelix) * dt_per_sample
             lead_times_s.append(lead_s)
 
-    # ── Summary ─────────────────────────────────────────────────────────────
+
     if lead_times_s:
         mean_lead   = np.mean(lead_times_s)
         median_lead = np.median(lead_times_s)

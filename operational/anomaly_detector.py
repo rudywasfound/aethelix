@@ -18,9 +18,26 @@ Two detection modes:
 
 import numpy as np
 from collections import deque
-from typing import Dict
-from scipy.stats import ks_2samp
+from typing import Dict, Tuple
 
+def fast_ks_2samp(data1: np.ndarray, data2: np.ndarray) -> Tuple[float, float]:
+    """
+    Sub-millisecond Kolmogorov-Smirnov test algorithm.
+    Optimized for anomaly detection streaming where arrays are small.
+    """
+    data1 = np.sort(data1)
+    data2 = np.sort(data2)
+    n1 = len(data1)
+    n2 = len(data2)
+    data_all = np.concatenate([data1, data2])
+    cdf1 = np.searchsorted(data1, data_all, side='right') / n1
+    cdf2 = np.searchsorted(data2, data_all, side='right') / n2
+    d = np.max(np.abs(cdf1 - cdf2))
+    
+    en = np.sqrt(n1 * n2 / (n1 + n2))
+    # Asymptotic approximation of the true KS p-value formula
+    pval = 2 * np.exp(-2.0 * (en * d) ** 2)
+    return d, min(float(pval), 1.0)
 
 class SlidingWindowDetector:
     """
@@ -123,10 +140,10 @@ class SlidingWindowDetector:
             cur_q = self.cur_windows[key]
             ref_q = self.ref_windows[key]
 
-            # --- Anomaly test ---
+            # Anomaly test
             if len(cur_q) >= self.window_size and len(ref_q) >= 20:
-                # Primary: KS distribution-shift test
-                _, pval = ks_2samp(list(ref_q), list(cur_q))
+                # Primary: Fast KS distribution-shift test
+                _, pval = fast_ks_2samp(list(ref_q), list(cur_q))
                 is_anomalous = pval < self.p_threshold
 
                 if not is_anomalous:

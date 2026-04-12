@@ -4,7 +4,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-active-success)
 
-**Topics**: `satellite`, `causal-inference`, `bayesian`, `fault-detection`, `python`
+
 
 Framework for inferring root causes in satellite systems experiencing multiple simultaneous degradations.
 
@@ -30,7 +30,7 @@ Framework for inferring root causes in satellite systems experiencing multiple s
 │  └──────────────────────────┘  └──────────────────────────┘    │
 └────────────────────┬───────────────────────────────────────────┘
                      │ Detect Anomalies (>15% deviation)
-                     │
+                     v
 ┌────────────────────────────────────────────────────────────────┐
 │                      CAUSAL GRAPH (DAG)                        │
 │                                                                │
@@ -108,6 +108,10 @@ Aethelix has been tested on **real satellite telemetry data** from the GSAT-6A f
 
 **4. Deviation Analysis** - Quantified deviations at each timepoint
 ![Deviation Analysis](docs/images/gsat6a_deviation_analysis.png)
+
+**5. Benchmarks** - Benchmark Results against LSTM and Threshold (OOL) *Note*: Its buggy and is being worked on.
+![Benchmark](docs/benchmark_results.png)
+
 
 ### Key Results
 

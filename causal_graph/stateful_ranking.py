@@ -238,9 +238,7 @@ class StatefulRootCauseRanker(RootCauseRanker):
         hypotheses.sort(key=lambda h: h.probability, reverse=True)
         return hypotheses
 
-    # ──────────────────────────────────────────────────────────────────
     # Override base _compute_confidence so analyze() also works correctly
-    # ──────────────────────────────────────────────────────────────────
 
     def _compute_confidence(
         self,
@@ -265,10 +263,8 @@ class StatefulRootCauseRanker(RootCauseRanker):
             streak           = self._streak.get(cause_name, 0),
         )
 
-    # ──────────────────────────────────────────────────────────────────
     # Temporally-aware confidence (returns 0–100 PERCENTAGE)
-    # ──────────────────────────────────────────────────────────────────
-
+    
     def _compute_stateful_confidence(
         self,
         cause_name:       str,

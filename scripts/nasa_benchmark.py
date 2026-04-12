@@ -7,7 +7,7 @@ the anomaly-sequence level — the same evaluation protocol used in the original
 Telemanom LSTM paper so results are directly comparable.
 
 Evaluation Protocol (sequence-level, industry standard)
---------------------------------------------------------
+
 - True Positive  (TP): at least one alarm fires inside an anomaly window.
 - False Positive (FP): an alarm fires with no overlap to any anomaly window.
   Consecutive alarms in the same non-anomaly region count as ONE FP event.
@@ -33,7 +33,7 @@ from operational.anomaly_detector import SlidingWindowDetector
 DATA_DIR    = "smap&msl_dataset/data/data/test"
 LABELS_PATH = "smap&msl_dataset/labeled_anomalies.csv"
 
-# ── Baselines from published literature ─────────────────────────────────────
+# Baselines from published literature
 LSTM_PRECISION = 0.851
 LSTM_RECALL    = 0.853
 LSTM_F1        = 0.852
@@ -119,7 +119,6 @@ def run_nasa_benchmark():
             print(f"  [{idx:3d}/{len(labels_df)}] {chan_id} — "
                   f"TP={chan_tp}/{len(anomaly_seqs)}  FP_events={chan_fp}")
 
-    # ── Metrics ─────────────────────────────────────────────────────────────
     precision = tp_seqs / (tp_seqs + fp_events) if (tp_seqs + fp_events) > 0 else 0.0
     recall    = tp_seqs / total_seqs             if total_seqs > 0             else 0.0
     f1        = (2 * precision * recall / (precision + recall)

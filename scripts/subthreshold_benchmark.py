@@ -2,7 +2,7 @@
 Sub-threshold fault detection benchmark.
 
 Evaluates Aethelix's ability to detect faults below the operational 15% alarm
-threshold — the regime where traditional alarm systems fail by design.
+threshold - the regime where traditional alarm systems fail by design.
 
 Fault Severity Range: 5–12% degradation of solar input power.
   - Traditional threshold alarm: 0% detection (misses by design).
@@ -10,7 +10,7 @@ Fault Severity Range: 5–12% degradation of solar input power.
   - Aethelix causal: see measured result below.
 
 Methodology
------------
+
 100 reproducible scenarios (seed=42) injected at T+6h with solar degradation
 drawn from Uniform(0.05, 0.12). Detection is confirmed when Aethelix produces
 a hypothesis with confidence ≥ 40% (meaningful, not trivial) for
@@ -100,7 +100,7 @@ def run_subthreshold_benchmark(num_scenarios: int = 100, seed: int = 42):
             print(f"  Scenario {i+1:3d}/{num_scenarios} | "
                   f"Detected so far: {detected_count}")
 
-    # ── False-positive rate (clean data) ────────────────────────────────────
+    # False-positive rate (clean data)
     fp_count = 0
     for _ in range(30):
         sim      = PowerSimulator(duration_hours=24, sampling_rate_hz=0.1)
