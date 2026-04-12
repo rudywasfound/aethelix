@@ -1,0 +1,204 @@
+BENCHMARK: Stochastic 100-Scenario Pipeline
+[  1] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[  2] battery_aging                  cat=A | Causal:RANK4  Baseline:HIT    Threshold:RANK2 
+[  3] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[  4] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[  5] solar_degradation              cat=A | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[  6] panel_insulation_degradation   cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[  7] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[  8] panel_insulation_degradation   cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[  9] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 10] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 11] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 12] panel_insulation_degradation   cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 13] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 14] solar_degradation              cat=A | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 15] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 16] panel_insulation_degradation   cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 17] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 18] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 19] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 20] battery_aging                  cat=A | Causal:RANK4  Baseline:HIT    Threshold:RANK2 
+[ 21] battery_aging                  cat=A | Causal:RANK4  Baseline:HIT    Threshold:RANK2 
+[ 22] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 23] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 24] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 25] panel_insulation_degradation   cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 26] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 27] panel_insulation_degradation   cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 28] battery_aging                  cat=A | Causal:RANK4  Baseline:HIT    Threshold:RANK2 
+[ 29] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 30] battery_aging                  cat=A | Causal:RANK4  Baseline:HIT    Threshold:RANK2 
+[ 31] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 32] panel_insulation_degradation   cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 33] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 34] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 35] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 36] battery_heatsink_failure       cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 37] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 38] battery_aging                  cat=A | Causal:RANK4  Baseline:HIT    Threshold:RANK2 
+[ 39] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 40] solar_degradation              cat=A | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 41] battery_heatsink_failure       cat=B | Causal:RANK3  Baseline:HIT    Threshold:RANK2 
+[ 42] solar_degradation              cat=B | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 43] battery_aging                  cat=B | Causal:RANK4  Baseline:RANK2  Threshold:RANK3 
+[ 44] panel_insulation_degradation   cat=B | Causal:RANK6  Baseline:RANK2  Threshold:RANK3 
+[ 45] battery_heatsink_failure       cat=B | Causal:RANK2  Baseline:HIT    Threshold:HIT   
+[ 46] panel_insulation_degradation   cat=B | Causal:RANK6  Baseline:RANK3  Threshold:RANK2 
+[ 47] battery_aging                  cat=B | Causal:RANK4  Baseline:RANK2  Threshold:RANK2 
+[ 48] battery_aging                  cat=B | Causal:RANK4  Baseline:RANK2  Threshold:RANK3 
+[ 49] battery_aging                  cat=B | Causal:RANK4  Baseline:HIT    Threshold:RANK2 
+[ 50] panel_insulation_degradation   cat=B | Causal:RANK6  Baseline:HIT    Threshold:RANK3 
+[ 51] solar_degradation              cat=B | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 52] solar_degradation              cat=B | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 53] battery_heatsink_failure       cat=B | Causal:RANK3  Baseline:HIT    Threshold:RANK2 
+[ 54] panel_insulation_degradation   cat=B | Causal:RANK6  Baseline:RANK4  Threshold:RANK2 
+[ 55] panel_insulation_degradation   cat=B | Causal:RANK3  Baseline:RANK2  Threshold:RANK2 
+[ 56] solar_degradation              cat=B | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 57] panel_insulation_degradation   cat=B | Causal:RANK6  Baseline:RANK3  Threshold:RANK2 
+[ 58] panel_insulation_degradation   cat=B | Causal:RANK6  Baseline:RANK4  Threshold:RANK2 
+[ 59] panel_insulation_degradation   cat=B | Causal:RANK5  Baseline:RANK2  Threshold:RANK2 
+[ 60] panel_insulation_degradation   cat=B | Causal:RANK7  Baseline:RANK4  Threshold:RANK2 
+[ 61] solar_degradation              cat=B | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 62] battery_aging                  cat=B | Causal:RANK3  Baseline:RANK2  Threshold:RANK2 
+[ 63] solar_degradation              cat=B | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 64] battery_aging                  cat=B | Causal:RANK4  Baseline:RANK2  Threshold:RANK2 
+[ 65] battery_heatsink_failure       cat=B | Causal:RANK2  Baseline:RANK2  Threshold:HIT   
+[ 66] battery_heatsink_failure       cat=C | Causal:HIT    Baseline:RANK3  Threshold:RANK2 
+[ 67] solar_degradation              cat=C | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 68] panel_insulation_degradation   cat=C | Causal:HIT    Baseline:RANK4  Threshold:RANK3 
+[ 69] battery_heatsink_failure       cat=C | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 70] panel_insulation_degradation   cat=C | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 71] solar_degradation              cat=C | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 72] battery_heatsink_failure       cat=C | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 73] battery_heatsink_failure       cat=C | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 74] panel_insulation_degradation   cat=C | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 75] battery_heatsink_failure       cat=C | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 76] solar_degradation              cat=C | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 77] battery_heatsink_failure       cat=C | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 78] solar_degradation              cat=C | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 79] panel_insulation_degradation   cat=C | Causal:HIT    Baseline:RANK4  Threshold:RANK2 
+[ 80] solar_degradation              cat=C | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 81] battery_heatsink_failure       cat=D | Causal:HIT    Baseline:HIT    Threshold:RANK2 
+[ 82] battery_heatsink_failure       cat=D | Causal:HIT    Baseline:RANK2  Threshold:RANK3 
+[ 83] battery_heatsink_failure       cat=D | Causal:HIT    Baseline:RANK2  Threshold:RANK2 
+[ 84] battery_heatsink_failure       cat=D | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 85] battery_heatsink_failure       cat=D | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 86] battery_heatsink_failure       cat=D | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 87] solar_degradation              cat=D | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 88] solar_degradation              cat=D | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 89] solar_degradation              cat=D | Causal:HIT    Baseline:RANK2  Threshold:HIT   
+[ 90] battery_heatsink_failure       cat=D | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 91] solar_degradation              cat=E | Causal:RANK3  Baseline:HIT    Threshold:HIT   
+[ 92] solar_degradation              cat=E | Causal:RANK2  Baseline:RANK3  Threshold:RANK2 
+[ 93] solar_degradation              cat=E | Causal:RANK3  Baseline:RANK3  Threshold:RANK2 
+[ 94] solar_degradation              cat=E | Causal:RANK3  Baseline:RANK3  Threshold:RANK2 
+[ 95] solar_degradation              cat=E | Causal:RANK3  Baseline:RANK3  Threshold:RANK2 
+[ 96] solar_degradation              cat=E | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 97] solar_degradation              cat=E | Causal:RANK3  Baseline:RANK3  Threshold:RANK2 
+[ 98] solar_degradation              cat=E | Causal:HIT    Baseline:HIT    Threshold:HIT   
+[ 99] solar_degradation              cat=E | Causal:RANK3  Baseline:RANK3  Threshold:RANK2 
+[100] solar_degradation              cat=E | Causal:RANK3  Baseline:RANK3  Threshold:RANK2 
+
+RESULTS SUMMARY
+
+Top-1 Accuracy:
+  Causal:     67.0%
+  Baseline:   61.0%
+  Threshold:  64.0%
+  Improvement (Causal vs Baseline): +6.0%
+
+Top-3 Accuracy:
+  Causal:     81.0%
+  Baseline:   95.0%
+  Threshold:  100.0%
+  Improvement (Causal vs Baseline): -14.0%
+
+Mean Rank (lower is better):
+  Causal:     1.98
+  Baseline:   1.59
+  Threshold:  1.42
+  Improvement (Causal vs Baseline): -0.39
+
+BREAKDOWN BY SCENARIO CATEGORY
+
+  Single-fault (n=40):
+    Causal top-1:    34/40 = 85%
+    Baseline top-1:  38/40 = 95%
+    Threshold top-1: 34/40 = 85%
+
+  Two-fault (n=25):
+    Causal top-1:    6/25 = 24%
+    Baseline top-1:  6/25 = 24%
+    Threshold top-1: 8/25 = 32%
+
+  Triple-fault+noise (n=15):
+    Causal top-1:    15/15 = 100%
+    Baseline top-1:  9/15 = 60%
+    Threshold top-1: 12/15 = 80%
+
+  Sensor-dropout (n=10):
+    Causal top-1:    10/10 = 100%
+    Baseline top-1:  5/10 = 50%
+    Threshold top-1: 7/10 = 70%
+
+  Cascading-ambiguity (n=10):
+    Causal top-1:    2/10 = 20%
+    Baseline top-1:  3/10 = 30%
+    Threshold top-1: 3/10 = 30%
+Professional comparison table saved to: docs/benchmark_results.png
+
+
+
+
+FAULT SEVERITY ANALYSIS: Solar Degradation
+
+Testing at 70% loss...
+
+Testing at 50% loss...
+
+Testing at 30% loss...
+
+Testing at 10% loss...
+
+Loss         Causal Rank     Correlation Rank   Threshold Rank
+------------------------------------------------------------
+    70%       1.00             1.00                 1.00
+    50%       1.00             1.00                 1.00
+    30%       1.00             1.00                 1.00
+    10%       1.00             1.00                 1.00
+
+
+
+
+NOISE ROBUSTNESS ANALYSIS: Battery Heatsink Failure
+
+Testing with 0% noise...
+
+Testing with 5% noise...
+
+Testing with 10% noise...
+
+Testing with 20% noise...
+
+Noise        Causal Rank     Correlation Rank   Threshold Rank
+------------------------------------------------------------
+   0.0%       1.00             1.00                 1.00
+   5.0%       1.00             1.00                 1.00
+  10.0%       1.00             1.00                 1.00
+  20.0%       1.00             1.00                 1.00
+
+
+
+
+CONFIDENCE CALIBRATION CURVE
+
+Confidence Bin    Mean Conf  Actual Acc  Samples
+--------------------------------------------------
+0.0-0.2                N/A         N/A        0
+0.2-0.4                N/A         N/A        0
+0.4-0.6                N/A         N/A        0
+0.6-0.8              69.5%       67.7%      164
+0.8-1.0              81.5%      100.0%       40
+
+Note: good calibration means Mean Conf ≈ Actual Acc in each bin.

@@ -28,8 +28,15 @@ which root causes best explain observed deviations in telemetry.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Any, Optional, Tuple
 from enum import Enum
+
+try:
+    from aethelix_core import PyCausalGraph
+    RUST_CORE_AVAILABLE = True
+except ImportError:
+    RUST_CORE_AVAILABLE = False
+    PyCausalGraph = None
 
 
 class NodeType(Enum):
@@ -90,68 +97,34 @@ class Edge:
 class CausalGraph:
     """
     DAG representing causal relationships in power and thermal subsystems.
-    
-    This is the knowledge base that enables causal inference. It encodes
-    engineering understanding of how satellites work and how they fail.
-    
-    Structure:
-    - 23 nodes total (7 root causes, 8 intermediate, 8 observable)
-    - 29 edges with weights and mechanisms
-    - Supports path tracing: observable -> intermediate -> root cause
-    - Enables hypothesis ranking based on path strength and consistency
-    
-    How it's used:
-    1. Operator sees deviations in telemetry (observables)
-    2. Inference engine traces paths backward to root causes
-    3. Hypotheses ranked by how well they explain observed deviations
-    4. Top-ranked hypothesis is the diagnosis
-    
-    Example: If we see low battery voltage and low battery charge both deviating,
-    the inference engine will:
-    - Find paths from these observables backward to root causes
-    - Solar degradation path: solar_degradation -> solar_input -> battery_state -> battery_voltage_measured (matches!)
-    - Battery aging path: battery_aging -> battery_efficiency -> battery_state -> battery_charge_measured (matches!)
-    - Score both hypotheses by path strength and consistency
-    - Rank the better-fitting hypothesis first
+    Encodes engineering knowledge for Bayesian root cause inference.
     """
 
     def __init__(self):
-        """
-        Initialize graph and build the power subsystem structure.
-        
-        We build the graph in __init__ rather than loading from a file
-        because the structure is relatively small (23 nodes) and fits
-        naturally as Python code. This makes it easy to:
-        1. See the full structure at a glance
-        2. Add/remove nodes or edges for experimentation
-        3. Version control changes to the graph structure
-        4. Validate that node dependencies are satisfied (e.g., target nodes exist)
-        """
+        """Initialize graph and subsystems."""
         
         self.nodes: Dict[str, Node] = {}  # name -> Node object
         self.edges: List[Edge] = []        # List of causal edges
         
+        # High-performance Rust backend for complex graph operations
+        if RUST_CORE_AVAILABLE:
+            self.rust_graph = PyCausalGraph()
+        else:
+            self.rust_graph = None
+        
         # Build the complete graph structure
         self._build_power_subsystem_graph()
+        self._build_adcs_subsystem_graph()
+        self._build_comms_subsystem_graph()
+        self._build_obc_subsystem_graph()
+        self._build_propulsion_subsystem_graph()
+        self._build_cross_subsystem_coupling()
 
     def _build_power_subsystem_graph(self):
-        """
-        Build initial power and thermal subsystem causal graph.
-        
-        The graph is built in layers:
-        1. Define all ROOT CAUSE nodes (faults we want to diagnose)
-        2. Define INTERMEDIATE nodes (physical effects)
-        3. Define OBSERVABLE nodes (measured telemetry)
-        4. Connect them with edges (failure propagation paths)
-        5. Add POWER-THERMAL COUPLING edges (cross-subsystem effects)
-        
-        This structure represents about 20 years of accumulated knowledge
-        from satellite operations, supplemented with domain expert input.
-        The mechanisms on each edge explain why the connection exists
-        (important for operators to understand recommendations).
-        """
+        """Build power/thermal graph layers: faults, effects, and telemetry."""
 
-        # ========== ROOT CAUSES (LAYER 1) ==========
+        # Root Causes
+
         # These are the faults we want to diagnose. Each represents a failure mode.
         
         # Power subsystem root causes
@@ -161,8 +134,7 @@ class CausalGraph:
             "Solar panel efficiency loss or shadowing",
             degradation_modes=["panel_aging", "dust_accumulation", "partial_shadowing"],
         )
-        # Why solar degradation: Panels accumulate dust, micrometeorite damage, thermal cycling
-        # causes adhesive degradation and contact loss
+
         
         self.add_node(
             "battery_aging",
@@ -170,8 +142,7 @@ class CausalGraph:
             "Battery cell degradation and capacity loss",
             degradation_modes=["cell_aging", "internal_resistance_rise"],
         )
-        # Why battery aging: Satellites have limited thermal control, cycling causes
-        # stress, and calendar aging occurs even with limited use (can be 20+ year missions)
+
         
         self.add_node(
             "battery_thermal",
@@ -179,8 +150,7 @@ class CausalGraph:
             "Excessive battery temperature stress",
             degradation_modes=["thermal_runaway_risk", "efficiency_loss"],
         )
-        # Why battery thermal: If cooling fails or dissipation exceeds capability,
-        # battery can overheat, further degrading electrochemistry
+
         
         self.add_node(
             "sensor_bias",
@@ -188,8 +158,7 @@ class CausalGraph:
             "Measurement bias or sensor drift",
             degradation_modes=["calibration_drift", "electronic_aging"],
         )
-        # Why sensor bias: Electronics age in vacuum/radiation, causing slight calibration
-        # drift that can mimic real faults
+
 
         # Thermal subsystem root causes
         self.add_node(
@@ -198,8 +167,7 @@ class CausalGraph:
             "Solar panel insulation or radiator fouling",
             degradation_modes=["insulation_loss", "radiator_fouling"],
         )
-        # Why insulation fails: Multi-layer insulation (MLI) can tear from micrometeorites,
-        # contaminants can accumulate, coatings degrade in UV
+
 
         self.add_node(
             "battery_heatsink_failure",
@@ -207,8 +175,7 @@ class CausalGraph:
             "Battery thermal management system failure",
             degradation_modes=["heatsink_blockage", "coolant_loss"],
         )
-        # Why heatsinks fail: Coolant can leak, interfaces can degrade, radiator
-        # can get contaminated or damaged
+
 
         self.add_node(
             "payload_radiator_degradation",
@@ -216,12 +183,18 @@ class CausalGraph:
             "Payload electronics radiator degradation",
             degradation_modes=["radiator_coating_loss", "micrometeorite_damage"],
         )
-        # Why payload radiators fail: Similar to panel insulation, radiator coatings
-        # degrade in vacuum/radiation environment
 
-        # ========== INTERMEDIATE NODES (LAYER 2) ==========
-        # These represent physical effects that propagate between subsystems.
-        # We don't measure them directly, but infer them from observables.
+
+        self.add_node(
+            "pcdu_regulator_failure",
+            NodeType.ROOT_CAUSE,
+            "Regulated Power Bus or PCDU Regulator failure",
+            degradation_modes=["regulator_short", "pcdu_controller_fault"],
+        )
+
+
+        # Intermediate Nodes
+
 
         # Power subsystem intermediates
         self.add_node(
@@ -229,28 +202,24 @@ class CausalGraph:
             NodeType.INTERMEDIATE,
             "Available solar power from panels",
         )
-        # This is the power produced by the solar array after degradation
 
         self.add_node(
             "battery_efficiency",
             NodeType.INTERMEDIATE,
             "Battery charge/discharge efficiency",
         )
-        # This represents how much of the input power actually gets stored (vs lost as heat)
 
         self.add_node(
             "battery_state",
             NodeType.INTERMEDIATE,
             "Battery charge capacity and health",
         )
-        # This is the actual state of charge and degradation of the battery
 
         self.add_node(
             "bus_regulation",
             NodeType.INTERMEDIATE,
             "Bus voltage regulation quality",
         )
-        # This represents how well the power conditioning maintains stable output voltage
 
         # Thermal subsystem intermediates
         self.add_node(
@@ -276,10 +245,9 @@ class CausalGraph:
             NodeType.INTERMEDIATE,
             "Overall system thermal stress level",
         )
-        # Aggregates thermal stress from multiple sources
 
-        # ========== OBSERVABLE NODES (LAYER 3) ==========
-        # These are measured telemetry that operators and inference engines can see.
+        # Observable Nodes
+
 
         # Power observables
         self.add_node(
@@ -331,8 +299,8 @@ class CausalGraph:
             "Measured bus current (power dissipation proxy)",
         )
 
-        # ========== CAUSAL EDGES: POWER SUBSYSTEM ==========
-        # These edges represent how power faults propagate
+        # Power Subsystem Edges
+
 
         # Solar degradation directly affects available solar input
         self.add_edge(
@@ -346,16 +314,25 @@ class CausalGraph:
         self.add_edge(
             "battery_aging",
             "battery_efficiency",
-            weight=0.85,  # Strong effect
+            weight=0.9,  # Increased to emphasize chemical degradation
             mechanism="Increased internal resistance reduces charge/discharge efficiency",
         )
 
         # Battery thermal stress reduces efficiency (temperature effects on electrochemistry)
+        # Weight reduced here to shift primary observability to the temperature path
         self.add_edge(
             "battery_thermal",
             "battery_efficiency",
-            weight=0.75,  # Moderate effect (temperature is one of several factors)
+            weight=0.65,  
             mechanism="High temperature degrades battery electrochemistry and increases losses",
+        )
+
+        # New: Thermal signature for battery thermal stress
+        self.add_edge(
+            "battery_thermal",
+            "battery_temp",
+            weight=0.75,
+            mechanism="Internal battery thermal stress manifests as temperature rise",
         )
 
         # Reduced solar input means battery can't recharge properly
@@ -378,12 +355,9 @@ class CausalGraph:
         self.add_edge(
             "battery_state",
             "bus_regulation",
-            weight=0.8,  # Moderate effect
+            weight=0.8,
             mechanism="Degraded battery supply makes regulation harder and less stable",
         )
-
-        # ========== MEASUREMENT EDGES: POWER SYSTEM ==========
-        # These connect physical quantities to measured telemetry
 
         # Solar input is directly measured
         self.add_edge(
@@ -433,6 +407,22 @@ class CausalGraph:
             mechanism="Battery state affects available power for regulation",
         )
 
+        # PCDU failure directly collapses bus regulation
+        self.add_edge(
+            "pcdu_regulator_failure",
+            "bus_regulation",
+            weight=0.98,  # Critical path
+            mechanism="PCDU regulator failure directly collapses regulated voltage levels",
+        )
+
+        # PCDU failure affects bus current draw proxy
+        self.add_edge(
+            "pcdu_regulator_failure",
+            "bus_current_measured",
+            weight=0.8,
+            mechanism="Failed regulator cannot sustain load current, dropping observed draw to zero",
+        )
+
         # Sensor bias adds error to voltage measurements
         self.add_edge(
             "sensor_bias",
@@ -449,16 +439,8 @@ class CausalGraph:
             mechanism="Sensor drift affects charge state estimation algorithms",
         )
 
-        # ========== CAUSAL EDGES: THERMAL SUBSYSTEM ==========
-        # These represent thermal failure propagation
+        # Thermal Subsystem Edges
 
-        # Battery state affects battery temperature (through discharge current)
-        self.add_edge(
-            "battery_state",
-            "battery_temp",
-            weight=0.8,  # Moderate effect (discharge current is one heat source)
-            mechanism="Low battery state forces higher discharge current, generating more I²R heat",
-        )
 
         # Solar input affects panel temperature (more sun = more heating)
         self.add_edge(
@@ -524,8 +506,8 @@ class CausalGraph:
             mechanism="High panel temperature indicates reduced thermal margin",
         )
 
-        # ========== POWER-THERMAL COUPLING ==========
-        # These edges represent cross-subsystem effects
+        # Power-Thermal Coupling
+
 
         # High battery temperature reduces efficiency (feedback loop)
         self.add_edge(
@@ -535,8 +517,8 @@ class CausalGraph:
             mechanism="Elevated temperature increases internal resistance and electrochemical losses",
         )
 
-        # ========== MEASUREMENT EDGES: THERMAL SYSTEM ==========
-        # Connect thermal quantities to measurements
+        # Thermal System Measurement Edges
+
 
         # Panel temperature is directly measured
         self.add_edge(
@@ -577,6 +559,318 @@ class CausalGraph:
             weight=0.7,  # Moderate effect
             mechanism="Reduced efficiency requires higher current to deliver same power",
         )
+
+    def _build_adcs_subsystem_graph(self):
+        """
+        Build ADCS (Attitude Determination and Control System) causal structure.
+        
+        WHY THIS MATTERS OPERATIONALLY:
+        ADCS faults are the #1 cause of mission loss for small satellites.
+        A reaction wheel failure doesn't just stop rotation; it creates
+        induced jitter and thermal stress, impacting payload data quality.
+        """
+
+        # ========== ROOT CAUSES: ADCS ==========
+        # ECSS-FM-AOCS-01: Reaction wheel bearing friction
+        self.add_node(
+            "wheel_friction",
+            NodeType.ROOT_CAUSE,
+            "Increased friction in reaction wheel bearings",
+            degradation_modes=["bearing_wear", "lubricant_degradation"],
+        )
+        
+        # ECSS-FM-AOCS-02: Gyroscope calibration drift
+        self.add_node(
+            "gyro_drift",
+            NodeType.ROOT_CAUSE,
+            "Uncompensated drift in gyroscope bias",
+            degradation_modes=["thermal_drift", "calibration_loss"],
+        )
+
+        # ECSS-FM-AOCS-03: Magnetorquer electronic fault
+        self.add_node(
+            "magnetorquer_anomaly",
+            NodeType.ROOT_CAUSE,
+            "Electronic fault in BCT or magnetorquer coils",
+            degradation_modes=["coil_short", "driver_fault"],
+        )
+
+        # ========== INTERMEDIATES: ADCS ==========
+        self.add_node(
+            "pointing_accuracy",
+            NodeType.INTERMEDIATE,
+            "Satellite attitude pointing precision",
+        )
+
+        self.add_node(
+            "control_effort",
+            NodeType.INTERMEDIATE,
+            "Magnetic/Momentum control effort level",
+        )
+
+        # ADCS Observables
+
+        self.add_node(
+            "pointing_error_measured",
+            NodeType.OBSERVABLE,
+            "Measured pointing deviation (arcsec)",
+        )
+
+        self.add_node(
+            "wheel_speed_measured",
+            NodeType.OBSERVABLE,
+            "Measured reaction wheel rotational speed (RPM)",
+        )
+
+        self.add_node(
+            "wheel_current_measured",
+            NodeType.OBSERVABLE,
+            "Measured reaction wheel motor current (A)",
+        )
+
+        self.add_node(
+            "gyro_bias_observed",
+            NodeType.OBSERVABLE,
+            "Estimated gyroscope bias from Kalman Filter",
+        )
+
+        # ADCS Edges
+
+        # Friction increases current draw and reduces pointing stability
+        self.add_edge("wheel_friction", "wheel_current_measured", weight=0.9, mechanism="Motor must work harder to overcome bearing friction")
+        self.add_edge("wheel_friction", "pointing_accuracy", weight=0.6, mechanism="Induced jitter from bearing vibration")
+        
+        # Gyro drift causes fake errors that controller tries to fix
+        self.add_edge("gyro_drift", "gyro_bias_observed", weight=0.95, mechanism="Direct estimation of bias by flight software")
+        self.add_edge("gyro_drift", "pointing_accuracy", weight=0.8, mechanism="Controller corrects for fake bias, inducing real pointing error")
+
+        # Magnetorquer failure prevents desaturation
+        self.add_edge("magnetorquer_anomaly", "control_effort", weight=0.8, mechanism="Loss of magnetic desaturation capability")
+        self.add_edge("control_effort", "wheel_speed_measured", weight=0.9, mechanism="Saturated momentum must be stored in wheels")
+
+        # Connection to measurement
+        self.add_edge("pointing_accuracy", "pointing_error_measured", weight=1.0, mechanism="Telemetry reports actual deviation")
+
+    def _build_comms_subsystem_graph(self):
+        """
+        Build Communications subsystem causal structure.
+        
+        WHY THIS MATTERS OPERATIONALLY:
+        A 'silent satellite' mode is the ultimate failure. Identifying HPA
+        degradation before total loss allows for adaptive modulation switching.
+        """
+
+        # Comms Root Causes
+
+        # ECSS-FM-COM-01: High Power Amplifier degradation
+        self.add_node(
+            "transponder_fault",
+            NodeType.ROOT_CAUSE,
+            "HPA or SSPA efficiency loss / degradation",
+            degradation_modes=["semiconductor_aging", "thermal_stress"],
+        )
+
+        # ECSS-FM-COM-02: Antenna pointing misalignment
+        self.add_node(
+            "antenna_pointing_error",
+            NodeType.ROOT_CAUSE,
+            "Mechanical antenna pointing or feed misalignment",
+            degradation_modes=["gimble_stuck", "thermal_distortion"],
+        )
+
+        # ECSS-FM-COM-03: Signal interference
+        self.add_node(
+            "ber_spike",
+            NodeType.ROOT_CAUSE,
+            "Transient radio frequency interference or BER spike",
+            degradation_modes=["emi_external", "solar_flare_interference"],
+        )
+
+        # Comms Intermediates
+
+        self.add_node(
+            "link_quality",
+            NodeType.INTERMEDIATE,
+            "Total RF link signal-to-noise ratio",
+        )
+
+        # Comms Observables
+
+        self.add_node(
+            "downlink_power_measured",
+            NodeType.OBSERVABLE,
+            "Measured downlink signal strength (dBm)",
+        )
+
+        self.add_node(
+            "ber_measured",
+            NodeType.OBSERVABLE,
+            "Measured Bit Error Rate",
+        )
+
+        self.add_node(
+            "transponder_temp_measured",
+            NodeType.OBSERVABLE,
+            "Measured transponder hardware temperature (C)",
+        )
+
+        # Comms Edges
+
+        self.add_edge("transponder_fault", "link_quality", weight=0.85, mechanism="Reduced HPA gain lowers total SNR")
+        self.add_edge("transponder_fault", "transponder_temp_measured", weight=0.7, mechanism="Inefficient HPA generates more waste heat")
+        
+        self.add_edge("antenna_pointing_error", "link_quality", weight=0.95, mechanism="Misalignment causes severe boresight signal loss")
+        
+        self.add_edge("ber_spike", "ber_measured", weight=0.98, mechanism="Direct observation of increased bit errors")
+        
+        self.add_edge("link_quality", "downlink_power_measured", weight=0.9, mechanism="Link SNR directly reflects in measured power")
+        self.add_edge("link_quality", "ber_measured", weight=0.8, mechanism="Weak signal increases probability of bit errors")
+
+    def _build_obc_subsystem_graph(self):
+        """
+        Build OBC (Onboard Computer) causal structure.
+        
+        WHY THIS MATTERS OPERATIONALLY:
+        Differentiating between a 'busy' CPU and 'stuck' logic prevents
+        unnecessary watchdog resets that could interrupt critical maneuvers.
+        """
+
+        # OBC Root Causes
+
+        # ECSS-FM-OBC-01: Memory corruption
+        self.add_node(
+            "memory_corruption",
+            NodeType.ROOT_CAUSE,
+            "Single Event Upset or memory block corruption",
+            degradation_modes=["seu", "multi_bit_fault"],
+        )
+
+        # ECSS-FM-OBC-02: Soft reset / Watchdog event
+        self.add_node(
+            "watchdog_reset_fault",
+            NodeType.ROOT_CAUSE,
+            "Unexplained watchdog timeout or system reset",
+            degradation_modes=["loop_deadlock", "resource_starvation"],
+        )
+
+        # ECSS-FM-OBC-03: Software exception
+        self.add_node(
+            "software_exception",
+            NodeType.ROOT_CAUSE,
+            "Recurring software exceptions or task crashes",
+            degradation_modes=["buffer_overflow", "logic_error"],
+        )
+
+        # OBC Intermediates
+
+        self.add_node(
+            "processor_state",
+            NodeType.INTERMEDIATE,
+            "Integrity of CPU execution and context",
+        )
+
+        # OBC Observables
+
+        self.add_node(
+            "cpu_load_measured",
+            NodeType.OBSERVABLE,
+            "Measured CPU usage percentage",
+        )
+
+        self.add_node(
+            "memory_usage_measured",
+            NodeType.OBSERVABLE,
+            "Measured RAM usage percentage",
+        )
+
+        self.add_node(
+            "reset_count_measured",
+            NodeType.OBSERVABLE,
+            "Cumulative OBC system reset count",
+        )
+
+        # OBC Edges
+
+        self.add_edge("memory_corruption", "processor_state", weight=0.8, mechanism="Corrupt instructions or heap corrupts execution")
+        self.add_edge("memory_corruption", "memory_usage_measured", weight=0.7, mechanism="Detection of leaked or locked memory blocks")
+        
+        self.add_edge("software_exception", "processor_state", weight=0.9, mechanism="Crashed tasks disrupt mission software")
+        self.add_edge("software_exception", "cpu_load_measured", weight=0.6, mechanism="Error handlers and loggers consume cycles")
+
+        self.add_edge("watchdog_reset_fault", "reset_count_measured", weight=1.0, mechanism="System logs every discrete reset event")
+        
+        self.add_edge("processor_state", "cpu_load_measured", weight=0.8, mechanism="Degraded software state often results in load spikes")
+        self.add_edge("processor_state", "reset_count_measured", weight=0.5, mechanism="Corruption eventually triggers a reboot")
+
+    def _build_propulsion_subsystem_graph(self):
+        """
+        Build Propulsion causal structure.
+        
+        WHY THIS MATTERS OPERATIONALLY:
+        Propulsion is mission-critical for station-keeping. Distinguishing
+        between a 'stuck' valve and a true 'leak' is the difference between
+        a repairable software fix and a mission-ending catastrophe.
+        """
+
+        # Propulsion Root Causes
+
+        # ECSS-FM-PROP-01: Thruster valve stuck
+        self.add_node(
+            "thruster_valve_fault",
+            NodeType.ROOT_CAUSE,
+            "Propellant valve stuck (open or closed)",
+            degradation_modes=["mechanical_jam", "electric_coil_fault"],
+        )
+
+        # ECSS-FM-PROP-02: Fuel pressure leak
+        self.add_node(
+            "fuel_pressure_anomaly",
+            NodeType.ROOT_CAUSE,
+            "Anomaly in propellant tank or regulator pressure",
+            degradation_modes=["seal_leak", "regulator_slip"],
+        )
+
+        # Intermediates: Propulsion
+
+        self.add_node(
+            "thrust_performance",
+            NodeType.INTERMEDIATE,
+            "Effective impulse vs commanded impulse",
+        )
+
+        # Observables: Propulsion
+
+        self.add_node(
+            "tank_pressure_measured",
+            NodeType.OBSERVABLE,
+            "Measured propellant tank pressure (PSI)",
+        )
+
+        self.add_node(
+            "thruster_temp_measured",
+            NodeType.OBSERVABLE,
+            "Measured thruster nozzle temperature (C)",
+        )
+
+        # Edges: Propulsion
+
+        self.add_edge("thruster_valve_fault", "thrust_performance", weight=0.95, mechanism="Stuck valve prevents or forces propellant flow")
+        self.add_edge("thruster_valve_fault", "thruster_temp_measured", weight=0.8, mechanism="Valve state affects heat produced by combustion")
+        
+        self.add_edge("fuel_pressure_anomaly", "tank_pressure_measured", weight=0.98, mechanism="Leaking propellant directly reduces tank pressure")
+        self.add_edge("fuel_pressure_anomaly", "thrust_performance", weight=0.7, mechanism="Variable pressure causes unstable thruster impulse")
+
+    def _build_cross_subsystem_coupling(self):
+        """Build edges representing cross-subsystem interactions."""
+
+        # Power affects OBC stability
+        self.add_edge("bus_regulation", "processor_state", weight=0.4, mechanism="Undervoltage causes CMOS latch-up or logic errors")
+        
+        # OBC affects ADCS (flight software runs loops)
+        self.add_edge("processor_state", "pointing_accuracy", weight=0.5, mechanism="CPU overload increases control loop latency")
+
+        # Propulsion affects Thermal (plume heating)
+        self.add_edge("thrust_performance", "payload_temp", weight=0.3, mechanism="Plume impingement or conduction from engines heats payload")
 
     def add_node(
         self,
@@ -625,6 +919,10 @@ class CausalGraph:
             raise ValueError(f"Target node '{target}' not in graph")
 
         self.edges.append(Edge(source, target, weight, mechanism))
+        
+        # Mirror in Rust core for fast traversal
+        if self.rust_graph:
+            self.rust_graph.add_edge(source, target, float(weight))
 
     def get_children(self, node_name: str) -> Dict[str, float]:
         """
@@ -692,60 +990,50 @@ class CausalGraph:
             if node.node_type == NodeType.OBSERVABLE
         ]
 
-    def get_paths_to_root(self, node_name: str, max_depth: int = 10) -> List[List[str]]:
+    def get_weighted_paths_to_root(
+        self, 
+        node_name: str, 
+        max_depth: int = 10
+    ) -> List[Tuple[List[str], float]]:
         """
-        Find all paths from a node back to root causes (upstream).
+        Find all causal paths from a node back to root causes, including
+        the cumulative causal strength (product of edge weights).
         
-        This is the core algorithm for causal inference. Starting from an
-        observable (measured telemetry), we trace backward through intermediate
-        effects to find which root causes could have caused the observation.
-        
-        Example:
-        Starting from "battery_voltage_measured", we find paths like:
-        - battery_voltage_measured ← battery_state ← solar_input ← solar_degradation
-        - battery_voltage_measured ← battery_state ← battery_efficiency ← battery_aging
-        
-        These paths are then scored based on how consistent they are with
-        all observed deviations.
-        
-        Args:
-            node_name: Starting node (typically an observable)
-            max_depth: Maximum path length to prevent infinite recursion
-            
-        Returns:
-            List of paths, where each path is a list of node names from observable to root
+        Uses high-performance Rust core if available.
         """
-        
+        if self.rust_graph:
+            return self.rust_graph.get_weighted_paths_to_root(node_name, max_depth)
+
+        # Fallback to recursive Python implementation
         if max_depth == 0:
             return []
 
         parents = self.get_parents(node_name)
         if not parents:
-            # No parents means this is a root cause (or isolated node)
-            return [[node_name]]
+            # We've reached a root cause
+            return [([node_name], 1.0)]
 
-        all_paths = []
-        for parent in parents:
-            parent_paths = self.get_paths_to_root(parent, max_depth - 1)
-            for path in parent_paths:
-                all_paths.append(path + [node_name])
+        all_results = []
+        for parent, weight in parents.items():
+            parent_results = self.get_weighted_paths_to_root(parent, max_depth - 1)
+            for path, parent_strength in parent_results:
+                new_path = path + [node_name]
+                all_results.append((new_path, parent_strength * weight))
 
-        return all_paths
+        return all_results
+
+    def get_paths_to_root(self, node_name: str, max_depth: int = 10) -> List[List[str]]:
+        """
+        Find all paths from a node back to root causes (upstream).
+        This is a legacy method returning only paths (no weights).
+        """
+        weighted_results = self.get_weighted_paths_to_root(node_name, max_depth)
+        return [path for path, strength in weighted_results]
 
     def print_structure(self):
-        """
-        Pretty-print graph structure for inspection.
+        """Pretty-print graph structure for inspection."""
         
-        Useful for:
-        1. Verifying graph was built correctly
-        2. Understanding the causal structure at a glance
-        3. Finding nodes by name or type
-        4. Reviewing causal mechanisms
-        """
-        
-        print("\n" + "=" * 70)
-        print("CAUSAL GRAPH STRUCTURE")
-        print("=" * 70)
+        print("\nCAUSAL GRAPH STRUCTURE")
 
         # Print nodes grouped by type
         for node_type in [NodeType.ROOT_CAUSE, NodeType.INTERMEDIATE, NodeType.OBSERVABLE]:
@@ -772,7 +1060,7 @@ class CausalGraph:
             if edge.mechanism:
                 print(f"    Mechanism: {edge.mechanism}")
 
-        print("=" * 70 + "\n")
+        print("")
 
 
 if __name__ == "__main__":

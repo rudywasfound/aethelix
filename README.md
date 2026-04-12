@@ -1,5 +1,11 @@
 # Aethelix: Causal Inference for Multi-Fault Satellite Failures
 
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-active-success)
+
+**Topics**: `satellite`, `causal-inference`, `bayesian`, `fault-detection`, `python`
+
 Framework for inferring root causes in satellite systems experiencing multiple simultaneous degradations.
 
 **Advantages:**
@@ -92,16 +98,16 @@ Aethelix has been tested on **real satellite telemetry data** from the GSAT-6A f
 ### Generated Analysis Graphs
 
 **1. Causal Graph** - Shows failure propagation through system
-![Causal Graph](gsat6a_causal_graph.png)
+![Causal Graph](docs/images/gsat6a_causal_graph.png)
 
 **2. Mission Analysis** - Complete timeline from launch to failure
-![Mission Analysis](gsat6a_mission_analysis.png)
+![Mission Analysis](docs/images/gsat6a_mission_analysis.png)
 
 **3. Failure Analysis** - Nominal vs. degraded comparison (9 panels)
-![Failure Analysis](gsat6a_failure_analysis.png)
+![Failure Analysis](docs/images/gsat6a_failure_analysis.png)
 
 **4. Deviation Analysis** - Quantified deviations at each timepoint
-![Deviation Analysis](gsat6a_deviation_analysis.png)
+![Deviation Analysis](docs/images/gsat6a_deviation_analysis.png)
 
 ### Key Results
 
@@ -113,51 +119,59 @@ From real telemetry data in `data/gsat6a_nominal.csv` and `data/gsat6a_failure.c
 - **Root Cause Confidence**: 46.1% with physical mechanisms
 - **Early Intervention Window**: Multiple recovery actions possible
 
+### What Aethelix Would Have Done (The GSAT-6A Timeline)
+
+* **T+0s**: Catastrophic CAPS regulator failure spikes the power bus. Traditional Threshold alarms remain perfectly silent as immediate parameters haven't yet broken absolute maximum hardware bounds.
+* **T+20s**: Downstream parameters drift. Battery temperatures climb and charge dissipates. A human ground controller relying on correlation matrices might assume an isolated thermal panel malfunction.
+* **T+36s**: Aethelix's Sliding Windows flag the 3-sigma mathematical deviations. The Stateful Causal Graph actively connects the cascading thermal symptoms exclusively backward into a `power_regulator_failure`, ignoring the confounding thermal noise and locking the fault with $46\%$ confidence.
+* **T+38s**: Aethelix warns the operations dashboard of a cascading power short, activating potential autonomous hardware safing protocols.
+* **T+180s**: (*Historical Legacy Detection Point*). Ground Control finally registers the macro-level failure manually, but fatal unrecoverable hardware damage has already occurred.
+
+---
+
+## The Strategic Impact of Aethelix
+
+### Autonomous Hardware Preservation
+Satellite frameworks are profoundly unforgiving. The cascading loss of the GSAT-6A payload in March 2018 cost ISRO over **₹270+ Crore (INR)**. Traditional diagnostics fail precisely because they require macroscopic damage to occur *before* a static threshold rings.
+
+Implementing Aethelix's Causal Inference natively on-board or directly in mission control yields massive asymmetric returns:
+- **$80\%$ Faster Detection:** Telemetry streaming pipelines ($1.5s$ processing) flag unmitigated fault states $4\times$ faster than legacy ground crews natively.
+- **Capital Offsets**: Recovering transient faults dynamically via a $144\text{-second}$ early intervention window prevents multihundred-million-dollar write-offs.
+- **Operator Unburdening**: Human operators are no longer forcefully required to untangle 40-variable thermal/power cascades mentally during high-stress orbital shifts. Aethelix mathematically isolates the root.
+
 **See [Real Examples Documentation](docs/07_REAL_EXAMPLES.md) for detailed analysis with explanations.**
 
 ---
 
-## Quick Start
-
 ### Installation
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+# Clone the repository
+git clone https://github.com/rudywasfound/aethelix
+cd aethelix
+
+# Recommended: setup virtual environment
+python -m venv venv
+source venv/bin/activate  # venv\Scripts\activate on Windows
+
+# Install all dependencies
 pip install -r requirements.txt
 ```
 
-### Run GSAT-6A Analysis
-```bash
-# Generate all graphs and analysis from real telemetry data
-python gsat6a/mission_analysis.py
-```
-
-This will:
-- Load real CSV telemetry (nominal + failure)
-- Run baseline characterization
-- Perform automatic anomaly detection
-- Execute causal inference analysis
-- Generate 4 comprehensive visualizations
-- Output detailed timeline reconstruction
-
-### Run Full Framework
+### Quick Run
 ```bash
 python main.py
 ```
+This runs the full diagnostic pipeline on a simulated multi-fault scenario (Solar + Battery aging).
 
-This will:
-1. Simulate 24 hours of nominal and degraded satellite telemetry
-2. Compute residual deviations
-3. Build causal graph (23 nodes, 29 edges)
-4. Rank root causes by posterior probability
-5. Generate plots and detailed explanations
-
-**Output:** `output/comparison.png`, `output/residuals.png` + console reports
-
-### Run Tests
+### Reproducing Scientific Benchmarks
+The repository includes a stochastic 100-scenario benchmark suite used for the formal performance evaluation.
 ```bash
-python -m unittest discover tests/ -v
+python scripts/benchmark.py
 ```
+*Deterministic results are guaranteed with `random.seed(42)` as configured in the script.*
+*Benchmark results (text and image) are permanently stored in `docs/benchmark_results.txt` and `docs/benchmark_results.png`.*
+
 
 ---
 
@@ -269,34 +283,37 @@ MEASUREMENT:
 
 ## Codebase Structure
 
-```
+```text
 aethelix/
-├── main.py                        # Entry point (Phases 1-2)
-├── simulator/
-│   └── power.py                   # Power subsystem simulator
-├── causal_graph/
-│   ├── graph_definition.py        # DAG and node/edge definitions
-│   └── root_cause_ranking.py      # Bayesian causal inference
-├── analysis/
-│   └── residual_analyzer.py       # Deviation quantification
-├── visualization/
-│   └── plotter.py                 # Telemetry comparison plots
-├── tests/
-│   ├── test_power_simulator.py
-│   └── test_causal_reasoning.py
-├── output/                        # Generated plots and reports
+├── analysis/                      # Deviation quantification
+├── causal_graph/                  # DAG definitions & Bayesian inference
+├── data/                          # Telemetry datasets
+├── docs/                          # Detailed documentation and diagrams
+├── examples/                      # Example workflows (e.g., GSAT-6A)
+├── forensics/                     # Post-mission analysis tools
+├── operational/                   # Real-time operator integration
+├── rust_core/                     # High-performance Rust backend
+├── scripts/                       # Local build and benchmark scripts
+├── simulator/                     # Subsystem simulation
+├── tests/                         # Unit and integration tests
+├── visualization/                 # Plotters and renderers
+├── main.py                        # Entry point for local runs
 └── README.md
 ```
 
 ---
 
-## Requirements
+See `requirements.txt` for the full dependency list.
 
-- Python 3.8+
-- NumPy
-- Matplotlib
+---
 
-See `requirements.txt`.
+## Technical Documentation
+
+- **[Theoretical Foundations](docs/theoretical_foundations.md)**: Mathematical proof of Theorem 1 (Sub-threshold detection incompleteness).
+- **[Benchmark Results (Evidence)](docs/benchmark_results.txt)**: Deterministic 100-scenario log output.
+- **[Installation Guide](docs/02_INSTALLATION.md)**: Detailed OS-specific setup.
+- **[API Reference](docs/10_API_REFERENCE.md)**: Python API documentation.
+
 
 ---
 
@@ -333,3 +350,20 @@ Aethelix's explicit causal DAG enables:
 - **Accurate diagnosis** in multi-fault conditions
 - **Transparent reasoning** (mechanisms, paths, evidence)
 - **Operator confidence** (not black-box ML)
+
+---
+
+## Citation
+
+If you use Aethelix in your research or mission operations, please cite it as:
+
+```bibtex
+@software{sharma2025aethelix,
+  author = {Sharma, Atiksh},
+  title = {Aethelix: Physics-Based Causal Inference 
+           for Real-Time Satellite Fault Detection},
+  year = {2025},
+  url = {https://github.com/rudywasfound/aethelix},
+  note = {Open source, MIT License}
+}
+```

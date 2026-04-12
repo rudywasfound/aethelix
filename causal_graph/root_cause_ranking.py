@@ -1,141 +1,150 @@
 """
 Root cause ranking algorithms for multi-fault diagnosis.
-
-This module implements the core inference engine of Aethelix: given observed
-telemetry deviations, rank which root causes best explain the observations.
-
-The algorithm works in three steps:
-1. ANOMALY DETECTION: Which observables deviated significantly?
-2. BACKWARD TRACING: Which root causes could have caused these deviations?
-3. RANKING: Which root causes best fit the pattern of observed anomalies?
-
-Why this approach:
-- Explicit reasoning: We trace from observations back to causes (transparent)
-- Multi-fault capable: Can handle multiple simultaneous root causes
-- Confounding-aware: Recognizes when one fault causes secondary deviations
-- Explainable: Can show users WHY we ranked a hypothesis (mechanisms, paths, evidence)
-
-The algorithm is rule-based Bayesian inference, not statistical learning:
-- Rules encode domain knowledge (causal mechanisms)
-- Bayesian: score hypotheses by how well they explain evidence
-- No training data required: knowledge comes from expert elicitation
-- Deterministic: same input always produces same output (reproducible)
+Infers likely causes from telemetry deviations using Bayesian reasoning over a causal graph.
 """
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from simulator.power import PowerTelemetry
 from causal_graph.graph_definition import CausalGraph
 
 
 @dataclass
 class RootCauseHypothesis:
-    """
-    A ranked hypothesis for root cause.
-    
-    This represents a potential diagnosis: "I think the root cause is X,
-    with probability P, based on evidence E, with confidence C".
-    
-    Operators use this information to:
-    1. Know which fault is most likely (probability)
-    2. Understand why (mechanism, evidence, causal paths)
-    3. Know how confident to be (confidence score)
-    """
-    
-    name: str                   # Root cause name (e.g., "solar_degradation")
-    probability: float          # Posterior probability this is the cause (0-1, sums to 1.0)
-    evidence: List[str]         # Observable deviations supporting this hypothesis
-    mechanism: str              # Explanation of causal mechanism
-    confidence: float           # Confidence in this hypothesis (0-1, independent of probability)
+    """ Ranked hypothesis for a root cause diagnosis. """
+
+    name: str                        # Root cause name (e.g., "solar_degradation")
+    probability: float               # Posterior probability this is the cause (0-1, sums to 1.0)
+    evidence: List[str]              # Observable deviations supporting this hypothesis
+    mechanism: str                   # Explanation of causal mechanism
+    confidence: float                # Confidence in this hypothesis (0-1, independent of probability)
     causal_paths: List[List[str]] = None  # Causal chains from root cause to observables
+    recommendations: Dict[str, str] = None # Actionable steps for operators
 
 
 class RootCauseRanker:
     """
-    Infer and rank root causes using causal graph.
-    
-    This is the main diagnosis engine. It takes two telemetry datasets
-    (nominal and degraded) and produces a ranked list of hypotheses
-    about what went wrong.
-    
-    The algorithm:
-    1. Compare nominal vs degraded to find deviations in each observable
-    2. For each deviation, trace backward through causal graph to root causes
-    3. Score root causes by path strength, deviation severity, and consistency
-    4. Normalize scores to probabilities and rank
-    5. Compute confidence based on evidence quality
+    Infer and rank root causes using a causal graph.
+    Identifies deviations, traces them back to roots, and ranks by probability and confidence.
     """
 
     def __init__(self, graph: CausalGraph):
         """
         Initialize ranker with causal graph.
-        
+
         Args:
             graph: CausalGraph instance containing domain knowledge
         """
-        
+
         self.graph = graph
-        
+
         # Mapping from physical quantity names to observable node names
-        # This allows us to handle different naming conventions in telemetry
         self.observables_map = {
-            # Power subsystem physical quantities -> graph node names
-            "solar_input": "solar_input_measured",
-            "battery_voltage": "battery_voltage_measured",
-            "battery_charge": "battery_charge_measured",
-            "bus_voltage": "bus_voltage_measured",
-            # Thermal subsystem physical quantities -> graph node names
-            "solar_panel_temp": "solar_panel_temp_measured",
-            "battery_temp": "battery_temp_measured",
-            "payload_temp": "payload_temp_measured",
-            "bus_current": "bus_current_measured",
+            "solar_input":       "solar_input_measured",
+            "battery_voltage":   "battery_voltage_measured",
+            "battery_charge":    "battery_charge_measured",
+            "bus_voltage":       "bus_voltage_measured",
+            "solar_panel_temp":  "solar_panel_temp_measured",
+            "battery_temp":      "battery_temp_measured",
+            "payload_temp":      "payload_temp_measured",
+            "bus_current":       "bus_current_measured",
+            # ADCS
+            "pointing_error":    "pointing_error_measured",
+            "wheel_speed":       "wheel_speed_measured",
+            "wheel_current":     "wheel_current_measured",
+            "gyro_bias":         "gyro_bias_observed",
+            # Comms
+            "downlink_power":    "downlink_power_measured",
+            "ber":               "ber_measured",
+            "transponder_temp":  "transponder_temp_measured",
+            # OBC
+            "cpu_load":          "cpu_load_measured",
+            "memory_usage":      "memory_usage_measured",
+            "reboot_count":      "reset_count_measured",
+            # Propulsion
+            "tank_pressure":     "tank_pressure_measured",
+            "thruster_temp":     "thruster_temp_measured",
         }
+
+        self._expected_evidence: Dict[str, List[str]] = {
+            # EPS
+            "solar_degradation":          ["solar_input", "battery_charge", "bus_voltage", "battery_voltage"],
+            "battery_aging":              ["battery_voltage", "battery_charge", "bus_voltage"],
+            "battery_thermal":            ["battery_voltage", "battery_charge", "battery_temp"],
+            "sensor_bias":                ["battery_voltage", "battery_charge"],
+            "pcdu_regulator_failure":     ["bus_voltage", "bus_current", "payload_temp"],
+            
+            # TCS
+            "panel_insulation_degradation": ["solar_panel_temp", "battery_temp"],
+            "battery_heatsink_failure":   ["battery_temp", "bus_current"],
+            "payload_radiator_degradation": ["payload_temp"],
+            
+            # ADCS
+            "wheel_friction":             ["wheel_current", "pointing_error"],
+            "gyro_drift":                 ["gyro_bias", "pointing_error"],
+            "magnetorquer_anomaly":       ["wheel_speed"],
+            
+            # COMMS
+            "transponder_fault":          ["downlink_power", "transponder_temp"],
+            "antenna_pointing_error":     ["downlink_power", "ber"],
+            "ber_spike":                  ["ber"],
+            
+            # OBC
+            "memory_corruption":          ["memory_usage", "cpu_load"],
+            "watchdog_reset_fault":       ["reboot_count"],
+            "software_exception":         ["cpu_load"],
+            
+            # PROP
+            "thruster_valve_fault":       ["thruster_temp"],
+            "fuel_pressure_anomaly":      ["tank_pressure"],
+        }
+
+        # Fault onset tracker for lead-time calculation
+        self._onset_timestamps: Dict[str, float] = {}
+        
+        # Sensor sticky-fault history (count of consecutive NaNs/Zeros)
+        self._sensor_dead_counts: Dict[str, int] = {}
+
+
 
     def analyze(
         self,
-        nominal: PowerTelemetry,
-        degraded: PowerTelemetry,
+        nominal,
+        degraded,
         deviation_threshold: float = 0.15,
     ) -> List[RootCauseHypothesis]:
         """
         Analyze deviations and rank root causes.
 
-        This is the main entry point. It orchestrates the three-step inference process:
-        1. Detect anomalies (which observables deviated significantly?)
-        2. Trace back to roots (which root causes could cause these anomalies?)
-        3. Score and rank (which root cause best explains the pattern?)
-
         Args:
             nominal: Healthy telemetry (baseline for comparison)
             degraded: Faulty telemetry (what we're diagnosing)
             deviation_threshold: Fractional threshold for flagging an anomaly.
-                For example, 0.15 means we only flag a deviation if it's >15% of
-                the nominal mean. This filters out sensor noise and normal fluctuations.
 
         Returns:
-            Sorted list of root cause hypotheses, ranked by probability (highest first)
+            Sorted list of root cause hypotheses, ranked by probability (highest first).
         """
-        
-        # STEP 1: ANOMALY DETECTION
-        # Compare nominal vs degraded to find which observables deviated significantly
-        anomalies = self._detect_anomalies(nominal, degraded, deviation_threshold)
 
-        # STEP 2: BACKWARD TRACING
-        # For each observable deviation, trace back through the causal graph
-        # to find which root causes could have caused it
-        root_cause_scores = {}  # Accumulates scores for each root cause
-        root_cause_evidence = {}  # Tracks which observations support each hypothesis
-        root_cause_paths = {}  # Tracks causal paths for each root cause
+        
+        orbital_phase = getattr(degraded, 'orbital_phase', [0.0])[0] if hasattr(degraded, 'orbital_phase') else 0.5
+        anomalies = self._detect_anomalies(nominal, degraded, deviation_threshold, orbital_phase=orbital_phase)
+        return self.analyze_anomalies(anomalies)
+
+    def analyze_anomalies(self, anomalies: Dict[str, float]) -> List[RootCauseHypothesis]:
+        """
+        Rank root causes given a pre-computed dictionary of anomaly severities.
+        """
+       
+        root_cause_scores: Dict[str, float] = {}
+        root_cause_evidence: Dict[str, List[str]] = {}
+        root_cause_paths: Dict[str, List] = {}
 
         for observable, severity in anomalies.items():
-            # Trace from this observable back to root causes
-            # Returns tuple of (scores_dict, paths_dict)
             contributing_causes, cause_paths = self._trace_back_to_roots(
                 observable, severity, anomalies
             )
-
-            # Accumulate scores, evidence, and paths for each root cause
+            
             for cause_name, cause_score in contributing_causes.items():
                 if cause_name not in root_cause_scores:
                     root_cause_scores[cause_name] = 0.0
@@ -147,245 +156,236 @@ class RootCauseRanker:
                 if cause_name in cause_paths:
                     root_cause_paths[cause_name].extend(cause_paths[cause_name])
 
-        # STEP 3: RANKING
-        # Normalize scores to probabilities and create hypothesis objects
-
-        # If no scores, no root causes were found
+        # normalise raw scores to posteriors
         total_score = sum(root_cause_scores.values())
         if total_score == 0:
             return []
 
-        hypotheses = []
-        for cause_name in root_cause_scores:
-            # Probability: this root cause's score as a fraction of total
-            # (ensures all probabilities sum to 1.0)
-            probability = root_cause_scores[cause_name] / total_score
-            
-            # Mechanism: plain-text explanation of how this fault would cause symptoms
+        # compute normalised posteriors first (needed by confidence)
+        posteriors: Dict[str, float] = {
+            c: s / total_score for c, s in root_cause_scores.items()
+        }
+
+        # we sort causes by posterior so that we can compute the margin between rank-1 and rank-2
+        sorted_causes = sorted(posteriors.items(), key=lambda x: x[1], reverse=True)
+        top_posterior   = sorted_causes[0][1] if len(sorted_causes) >= 1 else 0.0
+        second_posterior = sorted_causes[1][1] if len(sorted_causes) >= 2 else 0.0
+
+        hypotheses: List[RootCauseHypothesis] = []
+        for cause_name, probability in posteriors.items():
             mechanism = self._explain_mechanism(
                 cause_name, root_cause_evidence[cause_name], anomalies
             )
-            
-            # Confidence: how sure are we about this hypothesis?
-            # (independent of probability; can have high probability but low confidence
-            # if evidence is weak, or low probability but high confidence if it's a clear cause)
             confidence = self._compute_confidence(
-                cause_name, root_cause_evidence[cause_name], anomalies
+                cause_name=cause_name,
+                evidence=root_cause_evidence[cause_name],
+                anomalies=anomalies,
+                posterior=probability,
+                top_posterior=top_posterior,
+                second_posterior=second_posterior,
             )
 
-            hypotheses.append(
-                 RootCauseHypothesis(
-                     name=cause_name,
-                     probability=probability,
-                     evidence=root_cause_evidence[cause_name],
-                     mechanism=mechanism,
-                     confidence=confidence,
-                     causal_paths=root_cause_paths.get(cause_name, []),
-                 )
-             )
+            # Recommendations Engine
+            recommendations = self.get_recommendations(cause_name, confidence)
 
-        # Sort by probability (highest first) for easy ranking
+            hypotheses.append(
+                RootCauseHypothesis(
+                    name=cause_name,
+                    probability=probability,
+                    evidence=root_cause_evidence[cause_name],
+                    mechanism=mechanism,
+                    confidence=confidence,
+                    causal_paths=root_cause_paths.get(cause_name, []),
+                    recommendations=recommendations,
+                )
+            )
+
         hypotheses.sort(key=lambda h: h.probability, reverse=True)
         return hypotheses
 
+
+
     def _detect_anomalies(
         self,
-        nominal,  # PowerTelemetry or combined telemetry object
-        degraded,  # PowerTelemetry or combined telemetry object
+        nominal,
+        degraded,
         threshold: float,
+        orbital_phase: float = 0.5,
     ) -> Dict[str, float]:
         """
-        Detect which observables deviate from nominal.
-
-        This is the first step: identify what changed between nominal and degraded.
-        We compute residuals (absolute differences) and flag anything larger than
-        threshold * mean as an "anomaly".
-
-        Why threshold?
-        - Real sensors have noise, so small deviations don't indicate faults
-        - 15% threshold is typical for satellite telemetry (1-5% noise +  buffer)
-        - Prevents false positives while catching real degradation
-
-        Supports both power-only and power+thermal telemetry by checking
-        which fields exist and analyzing those.
-
-        Returns:
-            Dict mapping observable name string -> severity (0-1)
+        Detect which observables deviate from nominal with direction and context awareness.
         """
-        
-        anomalies = {}
 
-        # Define which observables to check
-        # Start with power subsystem (always present)
-        telemetry_pairs = [
-            ("solar_input", nominal.solar_input, degraded.solar_input),
-            ("battery_voltage", nominal.battery_voltage, degraded.battery_voltage),
-            ("battery_charge", nominal.battery_charge, degraded.battery_charge),
-            ("bus_voltage", nominal.bus_voltage, degraded.bus_voltage),
+        anomalies: Dict[str, float] = {}
+        
+        # Predicted eclipse window: 0.42 <= orbital_phase <= 0.58
+        is_eclipse = 0.42 <= orbital_phase <= 0.58
+
+        # Define all candidate channels (collected from available attributes)
+        candidate_channels = [
+            # EPS
+            "solar_input", "battery_voltage", "battery_charge", "bus_voltage", 
+            # TCS
+            "battery_temp", "solar_panel_temp", "payload_temp", "bus_current",
+            # ADCS
+            "pointing_error", "wheel_speed", "wheel_current", "gyro_bias",
+            # COMMS
+            "downlink_power", "ber", "transponder_temp",
+            # OBC
+            "cpu_load", "memory_usage", "reboot_count",
+            # PROP
+            "tank_pressure", "thruster_temp"
         ]
 
-        # Add thermal subsystem if available (combined telemetry)
-        if hasattr(nominal, "battery_temp"):
-            telemetry_pairs.extend([
-                ("battery_temp", nominal.battery_temp, degraded.battery_temp),
-                ("solar_panel_temp", nominal.solar_panel_temp, degraded.solar_panel_temp),
-                ("payload_temp", nominal.payload_temp, degraded.payload_temp),
-                ("bus_current", nominal.bus_current, degraded.bus_current),
-            ])
+        for name in candidate_channels:
+            if not hasattr(degraded, name) or not hasattr(nominal, name):
+                continue
+                
+            deg_values = getattr(degraded, name)
+            nom_values = getattr(nominal, name)
 
-        # For each observable, compute residual and check if it exceeds threshold
-        for name, nom_values, deg_values in telemetry_pairs:
-            # Residual: absolute magnitude of change
-            residual = np.abs(deg_values - nom_values)
-            mean_deviation = np.mean(residual)
-            baseline = np.mean(nom_values)
-
-            # Fractional deviation: deviation relative to nominal mean
-            # E.g., if solar_input normally averages 250W and now deviates 50W on average,
-            # fractional_dev = 50 / 250 = 0.2 (20% deviation)
-            if baseline > 0:
-                fractional_dev = mean_deviation / baseline
+            # --- 1. Sensor Fault Detection (3+ consecutive zeros or NaNs) ---
+            latest_val = deg_values[-1] if len(deg_values) > 0 else np.nan
+            if np.isnan(latest_val) or latest_val == 0.0:
+                self._sensor_dead_counts[name] = self._sensor_dead_counts.get(name, 0) + 1
             else:
-                fractional_dev = 0
+                self._sensor_dead_counts[name] = 0
 
-            # Flag as anomaly if exceeds threshold
+            if self._sensor_dead_counts[name] >= 3:
+                continue
+
+            # --- 2. Eclipse Awareness ---
+            if is_eclipse and name in ["solar_input", "solar_panel_temp"]:
+                continue
+
+            # --- 3. Direction-Aware Deviation ---
+            deg_mean = np.nanmean(deg_values)
+            nom_mean = np.nanmean(nom_values)
+            residual = deg_mean - nom_mean
+            
+            if name == "bus_voltage" and residual > 0:
+                continue
+                
+            fractional_dev = abs(residual) / (nom_mean if nom_mean != 0 else 1.0)
+
             if fractional_dev > threshold:
-                # Severity on scale 0-1 (where 0.5 = 50% deviation = severity 1.0)
-                # This is used for scoring: larger deviations get higher severity
-                severity = np.clip(fractional_dev / 0.5, 0, 1)
+                severity = np.clip(fractional_dev / 0.5, 0.0, 1.0)
                 anomalies[name] = severity
 
         return anomalies
+
+    def get_recommendations(self, cause_name: str, confidence: float) -> Dict[str, str]:
+        """
+        Generate 3-tier actionable recommendations based on fault type and confidence.
+        """
+        
+        if confidence < 20.0: return {} 
+
+        recs = {
+            "solar_degradation": {
+                "immediate": "Disable non-critical secondary payloads to reduce load.",
+                "short_term": "Schedule a detailed solar array IV-curve sweep.",
+                "escalation": "If battery SOC < 40%, initiate low-power safe mode."
+            },
+            "pcdu_regulator_failure": {
+                "immediate": "Command switch to redundant PCDU regulator string B.",
+                "short_term": "Analyze thermal telemetry for regulator board hot spots.",
+                "escalation": "If bus voltage < 26.5V, prepare for emergency battery direct-connect."
+            },
+            "wheel_friction": {
+                "immediate": "Increase wheel heater setpoint by 5C to thin lubricant.",
+                "short_term": "Switch attitude control to magnetic-only desaturation mode.",
+                "escalation": "If wheel current > 0.8A, command wheel shutdown and use thrusters."
+            },
+            "memory_corruption": {
+                "immediate": "Initiate task-level reset for affected service.",
+                "short_term": "Perform full memory scrub and checksum validation.",
+                "escalation": "If SEU frequency > 5/hour, command full system cold reboot."
+            }
+        }
+        
+        default = {
+            "immediate": "Monitor relevant telemetry channels at high sample rate.",
+            "short_term": "Review historical trend data for similar signatures.",
+            "escalation": "Consult subsystem domain expert if confidence exceeds 60%."
+        }
+        
+        return recs.get(cause_name, default)
+
+
 
     def _trace_back_to_roots(
         self,
         observable: str,
         severity: float,
         anomalies: Dict[str, float],
-    ) -> tuple:
+    ) -> Tuple[Dict[str, float], Dict[str, list]]:
         """
-        Trace from observable back to root causes.
-
-        Core algorithm: for a given observable deviation, find all causal paths
-        back to root causes, then score each root cause by:
-        1. Path strength: How strong is the causal chain? (product of edge weights)
-        2. Deviation severity: How big is the deviation? (bigger = stronger evidence)
-        3. Consistency: Do other observed anomalies match this root cause pattern?
-
-        Example:
-        Observable: battery_voltage_measured deviated
-        Path 1: battery_voltage_measured ← battery_state ← solar_input ← solar_degradation
-        Path 2: battery_voltage_measured ← battery_state ← battery_efficiency ← battery_aging
-        
-        We score each path and root cause, then return both scores and paths.
-
-        Args:
-            observable: Name of observable that deviated (e.g., "battery_voltage")
-            severity: Severity of deviation (0-1)
-            anomalies: All detected anomalies (used for consistency checking)
-
-        Returns:
-            Tuple of (scores_dict, paths_dict) where:
-            - scores_dict: maps root_cause_name -> score contribution
-            - paths_dict: maps root_cause_name -> list of contributing paths
+        Trace from observable back to root causes via the causal graph.
         """
-        
-        # Convert observable name to graph node name
+
         observable_node = self.observables_map.get(observable, observable)
-        
-        # Find all paths from this observable back to root causes
-        # Each path is a sequence of nodes from observable to root
-        paths = self.graph.get_paths_to_root(observable_node)
+        weighted_results = self.graph.get_weighted_paths_to_root(observable_node)
 
-        root_scores = {}
-        root_paths = {}  # Track which paths contribute to each root cause
+        root_scores: Dict[str, float] = {}
+        root_paths:  Dict[str, list]  = {}
 
-        # Score each path and attribute to its root cause
-        for path in paths:
-            # First element in path (when traversing backward) is the root cause
+        for path, path_strength in weighted_results:
             root_cause = path[0]
 
             if root_cause not in root_scores:
                 root_scores[root_cause] = 0.0
-                root_paths[root_cause] = []
+                root_paths[root_cause]  = []
 
-            # STEP 1: Compute path strength
-            # Product of all edge weights along the path
-            # E.g., if path has edges with weights 0.9 and 0.8, path_strength = 0.9 * 0.8 = 0.72
-            # Stronger causal chains (higher weights) = higher path strength
-            path_strength = 1.0
-            for i in range(len(path) - 1):
-                source, target = path[i], path[i + 1]
-                parents = self.graph.get_parents(target)
-                if source in parents:
-                    path_strength *= parents[source]
-
-            # STEP 2: Check consistency
-            # Are other observed anomalies consistent with this root cause?
-            # E.g., if we hypothesize "solar degradation", do we also see the expected
-            # effects on battery charge and voltage? Consistency 0-1 (higher is better)
             consistency = self._check_consistency(root_cause, anomalies)
             
-            # STEP 3: Compute overall score
-            # Combine path strength, severity, and consistency
-            # The formula: score = path_strength * severity * (baseline + consistency_boost)
-            # This means:
-            # - Strong paths get higher scores
-            # - Severe deviations are stronger evidence than minor ones
-            # - Consistent patterns get boosted, inconsistent get discount
-            score = path_strength * severity * (0.5 + 0.5 * consistency)
+            # Weighted scoring: 
+            # path_strength (physical coupling) * severity (magnitude) * consistency (pattern match)
+            # We use consistency with a baseline of 0.4 to ensure we don't zero out early detections
+            score = path_strength * severity * (0.4 + 0.6 * consistency)
+            
+            # Unique Path Bonus: 
+            # If this root cause is the only path to the observable, it gets a 20% boost.
+            # This helps distinguish solar failures from battery failures sharing charge symptoms.
+            if len(weighted_results) == 1:
+                score *= 1.2
 
-            root_scores[root_cause] += score
-            root_paths[root_cause].append(path)  # Track contributing path
+            # Use additive scoring for disjoint paths (converging mechanisms) 
+            # while ensuring we don't exceed 1.0 for a single observable-root coupling
+            root_scores[root_cause] = min(1.0, root_scores[root_cause] + score)
+            root_paths[root_cause].append(path)
 
         return root_scores, root_paths
 
-    def _check_consistency(self, root_cause: str, anomalies: Dict[str, float]) -> float:
+
+
+    def _check_consistency(
+        self,
+        root_cause: str,
+        anomalies: Dict[str, float],
+    ) -> float:
         """
-        Check if other observed anomalies are consistent with this root cause.
-
-        The idea: if we hypothesize root cause X, what secondary effects do we expect
-        to see in telemetry? If we see them, consistency is high. If we don't, it's lower.
-
-        Example:
-        Hypothesis: "solar_degradation"
-        Expected anomalies: solar_input (direct), battery_charge (can't charge fully), bus_voltage (power limited)
-        If we observe all three: consistency = 3/3 = 1.0 (perfect match)
-        If we observe two: consistency = 2/3 = 0.67
-        If we observe one: consistency = 1/3 = 0.33
-
-        Returns:
-            Consistency score (0-1), higher if observed matches expected
+        Fraction of expected anomalies that were actually observed.
         """
-        
-        # Domain knowledge: for each root cause, what observables do we expect to deviate?
-        # This comes from the system design and causal understanding
-        expected_anomalies = {
-            # Power subsystem causes
-            "solar_degradation": ["solar_input", "battery_charge", "bus_voltage"],
-            "battery_aging": ["battery_voltage", "battery_charge", "bus_voltage"],
-            "battery_thermal": ["battery_voltage", "battery_charge"],
-            "sensor_bias": ["battery_voltage", "battery_charge"],
-            # Thermal subsystem causes
-            "panel_insulation_degradation": ["solar_panel_temp", "battery_temp"],
-            "battery_heatsink_failure": ["battery_temp", "bus_current"],
-            "payload_radiator_degradation": ["payload_temp"],
-        }
 
-        if root_cause not in expected_anomalies:
-            return 0.5  # Unknown cause - neutral consistency (neither matches nor mismatches)
+        if root_cause not in self._expected_evidence:
+            return 0.5
 
-        # Count how many expected anomalies we actually observed
-        expected = set(expected_anomalies[root_cause])
+        expected = self._expected_evidence.get(root_cause, [])
+        if not expected:
+            return 0.5
+
         observed = set(anomalies.keys())
-        intersection = expected & observed  # Which expected were observed?
+        matches = len([e for e in expected if e in observed])
+        missing = len(expected) - matches
 
-        if len(expected) == 0:
-            return 0.5  # Degenerate case
+        # Weighted Support Model:
+        # High reward for confirmed symptoms, gentle penalty for missing ones.
+        # Reduced missing multiplier from 0.3 to 0.15 for better early-phase detection.
+        score = matches / (matches + 0.15 * missing) if (matches + missing) > 0 else 0.5
+        return score
 
-        # Consistency: fraction of expected anomalies that were observed
-        consistency = len(intersection) / len(expected)
-        return consistency
+
 
     def _explain_mechanism(
         self,
@@ -393,23 +393,9 @@ class RootCauseRanker:
         evidence: List[str],
         anomalies: Dict[str, float],
     ) -> str:
-        """
-        Generate plain-text explanation of mechanism.
+        """Generate plain-text explanation for operators."""
 
-        This is crucial for explainability. When we rank a hypothesis, we should
-        tell the operator WHY we think it's the root cause, not just that it has
-        high probability.
-
-        Each root cause has a templated explanation that describes the physical
-        mechanism and the evidence supporting it.
-
-        Returns:
-            Multi-sentence explanation suitable for display to operators
-        """
-        
-        # Template explanations for each root cause
         explanations = {
-            # Power subsystem mechanisms
             "solar_degradation": (
                 "Reduced solar input is propagating through the power subsystem. "
                 "This suggests solar panel degradation or shadowing, which reduces "
@@ -430,7 +416,6 @@ class RootCauseRanker:
                 "calibration drift rather than actual physical degradation. "
                 "Cross-check with other subsystems before taking action."
             ),
-            # Thermal subsystem mechanisms
             "panel_insulation_degradation": (
                 "Elevated solar panel temperature indicates loss of thermal insulation "
                 "or radiator fouling. This reduces panel efficiency and increases "
@@ -446,78 +431,99 @@ class RootCauseRanker:
                 "or micrometeorite damage. Payload must operate at reduced power to "
                 "avoid thermal shutdown."
             ),
+            "pcdu_regulator_failure": (
+                "A collapse in regulated bus voltage and current indicates a PCDU "
+                "regulator failure. This is a critical electrical fault that may "
+                "permanently disable payloads dependent on the regulated bus."
+            ),
         }
 
-        # Get base explanation for this root cause
-        base_explanation = explanations.get(
-            root_cause, "Unknown root cause mechanism."
-        )
-
-        # Append evidence if available
+        base = explanations.get(root_cause, "Unknown root cause mechanism.")
         if evidence:
-            evidence_str = "; ".join(evidence)
-            return f"{base_explanation}\nEvidence: {evidence_str}"
-        return base_explanation
+            return f"{base}\nEvidence: {'; '.join(evidence)}"
+        return base
+
+
 
     def _compute_confidence(
         self,
-        root_cause: str,
+        cause_name: str,
         evidence: List[str],
         anomalies: Dict[str, float],
+        posterior: float,
+        top_posterior: float,
+        second_posterior: float,
     ) -> float:
         """
-        Compute confidence in this root cause hypothesis.
-
-        Confidence measures how sure we are about this diagnosis, independent
-        of probability. For example:
-        - High probability + high confidence: We're very sure about this diagnosis
-        - High probability + low confidence: It's the best guess, but evidence is weak
-        - Low probability + high confidence: Small chance but if it's true, we'd be certain
-
-        Higher confidence if:
-        - Multiple observations support it (redundancy)
-        - Other anomalies match the expected pattern (consistency)
-
-        Returns:
-            Confidence score (0-1)
+        Compute calibrated confidence for a root-cause hypothesis.
+        Uses a multiplicative model factoring in posterior probability, symptoms consistency,
+        evidence saturation, and the margin between top hypotheses.
         """
-        
-        # Base confidence: 50% (neutral)
-        base_confidence = 0.5
-        
-        # Number of independent observations supporting this hypothesis
-        # Each piece of evidence boosts confidence (diminishing returns, capped at 3)
-        num_evidence = len(evidence)
-        
-        # Consistency: how well do OTHER anomalies match the pattern expected from this cause?
-        consistency = self._check_consistency(root_cause, anomalies)
 
-        # Compute final confidence:
-        # base (0.5) + evidence_boost (up to 0.45) + consistency_boost (up to 0.2)
-        # This formula ensures confidence stays in [0, 1]
-        confidence = base_confidence + 0.15 * min(num_evidence, 3) + 0.2 * consistency
-        return np.clip(confidence, 0, 1)
+        # 1. Model Posterior
+        posterior_factor = float(np.sqrt(np.clip(posterior, 0.0, 1.0)))
+
+        # Path Consistency
+
+        consistency = self._check_consistency(cause_name, anomalies)
+        # Consistency alone ranging 0–1 is fine; use it directly.
+        consistency_factor = consistency
+
+        # Evidence Saturation
+
+        expected_count = len(self._expected_evidence.get(cause_name, []))
+        # Number of *unique* observed channels that match expected evidence
+        observed_matching = len(
+            set(self._expected_evidence.get(cause_name, [])) & set(anomalies.keys())
+        )
+        if expected_count > 0:
+            saturation = observed_matching / expected_count
+        else:
+            saturation = 0.5  # unknown cause: neutral
+
+        # Apply a soft penalty for low saturation: sqrt keeps it non-zero
+        # even with partial evidence, but penalises incompleteness.
+        saturation_factor = float(np.sqrt(np.clip(saturation, 0.0, 1.0)))
+
+        # Posterior Margin
+
+        # margin = how much more probable is this hypothesis than the runner-up?
+        # Range: [0, 1].  A tie (margin=0) → margin_factor=0 (maximally uncertain).
+        if top_posterior > 0:
+            margin = np.clip(
+                (top_posterior - second_posterior) / top_posterior, 0.0, 1.0
+            )
+        else:
+            margin = 0.0
+
+        # Use a softer sqrt so partial separation still gives some confidence
+        margin_factor = float(np.sqrt(margin))
+
+        # Combine
+        # Switched to a less aggressive combination to populate higher confidence bins.
+        raw_confidence = (
+            0.4 * posterior_factor +
+            0.2 * consistency_factor +
+            0.2 * saturation_factor +
+            0.2 * margin_factor
+        )
+
+        # Baseline floor: any hypothesis with high posterior should have some confidence
+        confidence = np.clip(raw_confidence, posterior * 0.1, 1.0)
+
+        return float(np.clip(confidence, 0.0, 1.0))
+
+
 
     def print_report(self, hypotheses: List[RootCauseHypothesis]):
-        """
-        Pretty-print root cause analysis report for operators.
-        
-        Format:
-        1. Summary ranking (most likely first)
-        2. Detailed explanation for each hypothesis (evidence and mechanism)
-        
-        This is the main output shown to satellite operators for decision-making.
-        """
-        
-        print("\n" + "=" * 70)
-        print("ROOT CAUSE RANKING ANALYSIS")
-        print("=" * 70)
+        """Pretty-print root cause analysis report for operators."""
+
+        print("\nROOT CAUSE RANKING ANALYSIS")
 
         if not hypotheses:
             print("\nNo significant root causes detected.")
             return
 
-        # SECTION 1: Ranked summary (operators see this first)
         print("\nMost Likely Root Causes (by posterior probability):\n")
         for rank, hyp in enumerate(hypotheses, 1):
             print(
@@ -526,32 +532,28 @@ class RootCauseRanker:
                 f"Confidence={hyp.confidence:5.1%}"
             )
 
-        # SECTION 2: Detailed explanations (for deeper investigation)
-        print("\n" + "-" * 70)
+
         print("DETAILED EXPLANATIONS:\n")
 
         for hyp in hypotheses:
-             print(f"• {hyp.name} (P={hyp.probability:.1%})")
-             
-             # Display causal paths
-             if hyp.causal_paths:
-                 unique_paths = list(set([tuple(p) for p in hyp.causal_paths]))
-                 if len(unique_paths) > 0:
-                     print(f"  Causal Paths:")
-                     for path in unique_paths[:3]:  # Show up to 3 paths
-                         # Reverse path to show flow from root cause to observable
-                         path_str = " → ".join(reversed(path))
-                         print(f"    {path_str}")
-             
-             print(f"  Evidence: {', '.join(hyp.evidence)}")
-             print(f"  Mechanism: {hyp.mechanism}")
-             print()
+            print(f"• {hyp.name} (P={hyp.probability:.1%})")
 
-        print("=" * 70 + "\n")
+            if hyp.causal_paths:
+                unique_paths = list(set([tuple(p) for p in hyp.causal_paths]))
+                if unique_paths:
+                    print(f"  Causal Paths:")
+                    for path in unique_paths[:3]:
+                        path_str = " → ".join(reversed(path))
+                        print(f"    {path_str}")
+
+            print(f"  Evidence: {', '.join(hyp.evidence)}")
+            print(f"  Mechanism: {hyp.mechanism}")
+            print()
+
+        print("")
 
 
 if __name__ == "__main__":
-    # Quick test of root cause ranking
     from simulator.power import PowerSimulator
 
     sim = PowerSimulator(duration_hours=24)
@@ -563,6 +565,5 @@ if __name__ == "__main__":
 
     graph = CausalGraph()
     ranker = RootCauseRanker(graph)
-
     hypotheses = ranker.analyze(nominal, degraded, deviation_threshold=0.15)
     ranker.print_report(hypotheses)

@@ -4,7 +4,7 @@
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
-use crate::{Measurement, KalmanFilter, ExtendedKalmanFilter, DropoutHandler};
+use crate::{Measurement, KalmanFilter, DropoutHandler, CausalGraphState, CCSDSStreamParser};
 
 #[cfg(feature = "python")]
 #[pyclass]
@@ -108,11 +108,79 @@ impl PyDropoutHandler {
 }
 
 #[cfg(feature = "python")]
+#[pyclass]
+pub struct PySpacePacket {
+    #[pyo3(get)]
+    pub apid: u16,
+    #[pyo3(get)]
+    pub sequence_count: u16,
+    #[pyo3(get)]
+    pub payload: Vec<u8>,
+}
+
+#[cfg(feature = "python")]
+#[pyclass]
+pub struct PyCCSDSParser {
+    inner: CCSDSStreamParser,
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl PyCCSDSParser {
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: CCSDSStreamParser::new(),
+        }
+    }
+
+    fn push_bytes(&mut self, bytes: Vec<u8>) {
+        self.inner.push_bytes(&bytes);
+    }
+
+    fn next_packet(&mut self) -> Option<PySpacePacket> {
+        self.inner.next_packet().map(|p| PySpacePacket {
+            apid: p.header.apid,
+            sequence_count: p.header.sequence_count,
+            payload: p.payload,
+        })
+    }
+}
+
+#[cfg(feature = "python")]
+#[pyclass]
+pub struct PyCausalGraph {
+    inner: CausalGraphState,
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl PyCausalGraph {
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: CausalGraphState::new(),
+        }
+    }
+
+    fn add_edge(&mut self, source: &str, target: &str, weight: f64) {
+        self.inner.add_edge(source, target, weight);
+    }
+
+    fn get_weighted_paths_to_root(&self, node_name: &str, max_depth: usize) -> Vec<(Vec<String>, f64)> {
+        self.inner.get_weighted_paths_to_root(node_name, max_depth)
+    }
+}
+
+#[cfg(feature = "python")]
 #[pymodule]
-fn aethelix_core(py: Python, m: &PyModule) -> PyResult<()> {
+fn aethelix_core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyMeasurement>()?;
     m.add_class::<PyKalmanFilter>()?;
     m.add_class::<PyDropoutHandler>()?;
+    m.add_class::<PyCausalGraph>()?;
+    m.add_class::<PyCCSDSParser>()?;
+    m.add_class::<PySpacePacket>()?;
     
     m.add("__version__", crate::VERSION)?;
     

@@ -43,6 +43,7 @@ class PowerTelemetry:
     battery_voltage: np.ndarray # Volts (typically 20-32V for satellite bus)
     battery_charge: np.ndarray  # Percentage (0-100, protected at 20% minimum)
     bus_voltage: np.ndarray     # Volts (regulated output to subsystems)
+    orbital_phase: np.ndarray   # Normalised orbital angle (0-2pi)
     timestamp: np.ndarray       # Sample indices for alignment with causal graph
 
 
@@ -261,6 +262,9 @@ class PowerSimulator:
         """
         
         solar = self.simulate_solar_input(degradation_start_hour=None)
+        # Normalised orbital fraction [0, 1]: 0=day, 0.5=midnight (deepest eclipse)
+        raw_phase = 2 * np.pi * self.time / (1.5 * 3600)
+        orbital_phase = (raw_phase % (2 * np.pi)) / (2 * np.pi)
         battery_charge, battery_voltage = self.simulate_battery_dynamics(
             solar, efficiency_degradation_start_hour=None
         )
@@ -272,6 +276,7 @@ class PowerSimulator:
             battery_voltage=battery_voltage,
             battery_charge=battery_charge,
             bus_voltage=bus,
+            orbital_phase=orbital_phase,
             timestamp=np.arange(self.num_samples),
         )
 
@@ -306,6 +311,9 @@ class PowerSimulator:
             degradation_start_hour=solar_degradation_hour,
             degradation_factor=solar_factor,
         )
+        # Normalised orbital fraction [0, 1]: 0=day, 0.5=midnight (deepest eclipse)
+        raw_phase = 2 * np.pi * self.time / (1.5 * 3600)
+        orbital_phase = (raw_phase % (2 * np.pi)) / (2 * np.pi)
         battery_charge, battery_voltage = self.simulate_battery_dynamics(
             solar,
             efficiency_degradation_start_hour=battery_degradation_hour,
@@ -319,6 +327,7 @@ class PowerSimulator:
             battery_voltage=battery_voltage,
             battery_charge=battery_charge,
             bus_voltage=bus,
+            orbital_phase=orbital_phase,
             timestamp=np.arange(self.num_samples),
         )
 

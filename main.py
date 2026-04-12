@@ -67,45 +67,26 @@ class CombinedTelemetry:
         self.payload_temp = thermal_telem.payload_temp
         self.bus_current = thermal_telem.bus_current
         
+        # TCS/EPS Coupling context
+        self.orbital_phase = power_telem.orbital_phase
+        
         # Timestamp index for alignment with causal graph node indices
         self.timestamp = power_telem.timestamp
 
 
-def main():
-    """
-    Execute the full Aethelix workflow.
-    
-    The workflow consists of three main phases that build on each other:
-    Phase 1: Data generation (simulators produce realistic telemetry)
-    Phase 2: Analysis (quantify what changed and by how much)
-    Phase 3: Inference (determine which root causes explain the changes)
-    """
-    
-    print("=" * 70)
-    print("Causal Inference for Satellite Fault Diagnosis")
-    print("=" * 70)
+def main():    
+    print("Causal Inference for Satellite Fault Diagnosis\n")
 
-    # Create output directory to store generated plots and reports
-    # This ensures clean separation of input code from generated artifacts
+    
     output_dir = "output"
     os.makedirs(output_dir, exist_ok=True)
 
-    # PHASE 1: DATA GENERATION
-    # We create realistic telemetry by running simulators that model actual
-    # satellite physics. Using simulators instead of real data lets us:
-    # 1. Know ground truth (which fault was actually present)
-    # 2. Control fault parameters (severity, timing, type)
-    # 3. Run repeatable experiments
-    # 4. Build a diverse dataset quickly
     
     print("\n[1] Initializing simulators...")
     power_sim = PowerSimulator(duration_hours=24, sampling_rate_hz=0.1)
     thermal_sim = ThermalSimulator(duration_hours=24, sampling_rate_hz=0.1)
 
-    # Generate nominal scenario: satellite operating perfectly
-    # This baseline is essential because diagnosis works by comparing
-    # degraded behavior to nominal behavior. We can only detect anomalies
-    # by noting deviations from normal operation.
+    
     print("[2] Running nominal scenario...")
     power_nom = power_sim.run_nominal()
     thermal_nom = thermal_sim.run_nominal(
@@ -115,11 +96,7 @@ def main():
     )
     nominal = CombinedTelemetry(power_nom, thermal_nom)
 
-    # Generate degraded scenario: satellite with multiple simultaneous faults
-    # Multi-fault testing is critical because:
-    # 1. Real failures often cascade (solar loss -> reduced charging -> battery stress)
-    # 2. Simple approaches fail when one fault causes secondary deviations
-    # 3. Causal reasoning explicitly models these interactions
+    
     print("[3] Running degraded scenario (multi-fault)...")
     power_deg = power_sim.run_degraded(
         solar_degradation_hour=6.0,   # Solar panels degrade 6 hours into mission
@@ -136,40 +113,21 @@ def main():
     )
     degraded = CombinedTelemetry(power_deg, thermal_deg)
 
-    # PHASE 2: ANALYSIS
-    # Quantify what changed between nominal and degraded scenarios
-    # The residual analyzer computes deviations and identifies anomalies
     
     print("[4] Analyzing deviations...")
     analyzer = ResidualAnalyzer(deviation_threshold=0.15)
-    # Threshold=0.15 means we flag a deviation as significant only if it's
-    # >15% of the nominal mean. This filters out small fluctuations from
-    # normal sensor noise, focusing on real anomalies.
+    # Threshold filters out noise (fluctuations < 15% of mean)
+
     stats = analyzer.analyze(nominal, degraded)
     analyzer.print_report(stats)
 
-    # PHASE 3: VISUALIZATION
-    # Generate plots showing nominal vs degraded behavior
-    # Visualizations help operators quickly understand what went wrong
-    
+   
     print("[5] Generating plots...")
     plotter = TelemetryPlotter()
-    # Plot 1: Side-by-side comparison of nominal and degraded telemetry
-    # This shows the raw timeseries and makes deviations visually obvious
-    plotter.plot_comparison(
-        nominal,
-        degraded,
-        degradation_hours=(6, 24),  # Highlight the period when faults were active
-        save_path=f"{output_dir}/comparison.png",
-    )
-    # Plot 2: Residuals showing the actual deviations
-    # Residuals (difference from nominal) highlight anomalies more clearly
     plotter.plot_residuals(nominal, degraded, save_path=f"{output_dir}/residuals.png")
 
-    # PHASE 4: CAUSAL INFERENCE
-    # This is the core innovation of Aethelix
-    # Instead of just finding deviations, we trace them back to root causes
-    
+
+  
     print("[6] Building causal graph...")
     graph = CausalGraph()
     # The graph encodes domain knowledge:
@@ -178,14 +136,7 @@ def main():
     # - 29 edges representing causal mechanisms
     print(f"    {len(graph.nodes)} nodes, {len(graph.edges)} edges")
 
-    # PHASE 5: ROOT CAUSE RANKING
-    # Given the observed deviations, use Bayesian inference to rank causes
-    # The algorithm:
-    # 1. For each root cause, check if it could explain the observed deviations
-    # 2. Score by how well the explanation fits (via graph consistency checking)
-    # 3. Normalize scores to probabilities
-    # 4. Return ranked list with confidence intervals
-    
+    # Phase 5: Root Cause Ranking
     print("[7] Ranking root causes...")
     ranker = RootCauseRanker(graph)
     hypotheses = ranker.analyze(nominal, degraded, deviation_threshold=0.15)
@@ -196,7 +147,7 @@ def main():
     # - mechanisms: explanation of how this cause produced the observed deviations
     ranker.print_report(hypotheses)
 
-    # Confirm completion
+
     print(f"\nOutputs saved to '{output_dir}/'")
     print("Workflow complete. Review plots and report for diagnosis.")
 

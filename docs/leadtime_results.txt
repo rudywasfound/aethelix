@@ -1,0 +1,26 @@
+Detection Lead-Time Benchmark
+  Fault type:   Solar degradation (15%–40%)
+  Fault onset:  T = 6h
+  Scenarios:    50  |  Seed: 42
+  Aethelix confidence threshold: 40.0%
+  OOL threshold: 15% deviation
+
+============================================================
+  DETECTION LEAD-TIME RESULTS
+============================================================
+  Scenarios run:               50
+  Aethelix detected:           29
+  Threshold fired:             50
+  Threshold-only misses:       0 (severity too mild)
+
+  Lead-time statistics (Aethelix vs OOL threshold):
+    Mean lead time:            +0.0 s
+    Median lead time:          +0.0 s
+    75th percentile:           +0.0 s
+    Scenarios Aethelix faster: 0/29
+
+  Published comparisons:
+    LSTM Telemanom lead time:  ~+10 to +20 s  (requires training)
+    OOL threshold lead time:   0 s            (baseline)
+    Aethelix lead time:        +0.0 s (zero training)
+============================================================
