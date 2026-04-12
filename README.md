@@ -363,7 +363,7 @@ If you use Aethelix in your research or mission operations, please cite it as:
 
 ```bibtex
 @software{sharma2025aethelix,
-  author = {Sharma, Atiksh},
+  author = {Atiksh Sharma},
   title = {Aethelix: Physics-Based Causal Inference 
            for Real-Time Satellite Fault Detection},
   year = {2025},
