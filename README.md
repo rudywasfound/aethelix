@@ -98,16 +98,16 @@ Aethelix has been tested on **real satellite telemetry data** from the GSAT-6A f
 ### Generated Analysis Graphs
 
 **1. Causal Graph** - Shows failure propagation through system
-![Causal Graph](docs/images/gsat6a_causal_graph.png)
+![Causal Graph](docs/gsat6a_causal_graph.png)
 
 **2. Mission Analysis** - Complete timeline from launch to failure
-![Mission Analysis](docs/images/gsat6a_mission_analysis.png)
+![Mission Analysis](docs/sat6a_mission_analysis.png)
 
 **3. Failure Analysis** - Nominal vs. degraded comparison (9 panels)
-![Failure Analysis](docs/images/gsat6a_failure_analysis.png)
+![Failure Analysis](docs/gsat6a_failure_analysis.png)
 
 **4. Deviation Analysis** - Quantified deviations at each timepoint
-![Deviation Analysis](docs/images/gsat6a_deviation_analysis.png)
+![Deviation Analysis](docs/gsat6a_deviation_analysis.png)
 
 **5. Benchmarks** - Benchmark Results against LSTM and Threshold (OOL) *Note*: Its buggy and is being worked on.
 ![Benchmark](docs/benchmark_results.png)
