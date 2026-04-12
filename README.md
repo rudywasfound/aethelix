@@ -3,7 +3,7 @@
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-active-success)
-
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19538163.svg)](https://doi.org/10.5281/zenodo.19538163)
 
 
 Framework for inferring root causes in satellite systems experiencing multiple simultaneous degradations.
