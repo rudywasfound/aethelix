@@ -343,6 +343,17 @@ See `requirements.txt` for the full dependency list.
 
 ---
 
+## Acknowledgements
+
+- Aethelix uses the **NASA Telemanom** framework as a primary benchmark for evaluating diagnostic accuracy on spacecraft telemetry. 
+
+  - **Datasets:** We evaluate using the SMAP (Soil Moisture Active Passive) and MSL (Mars Science Laboratory) datasets provided by NASA.
+  - **Baseline:** Performance is compared against the LSTM-based anomaly detection methods established in the following paper:
+
+> Hundman, K., Constantinou, V., Laporte, C., Colwell, I., & Soderstrom, T. (2018). *Detecting Spacecraft Anomalies Using LSTMs and Nonparametric Dynamic Thresholding*. Proceedings of the 24th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining. https://arxiv.org/abs/1802.04431
+
+---
+
 ## Why Causal Inference?
 
 Traditional threshold/correlation-based satellite monitoring fails in multi-fault scenarios:
