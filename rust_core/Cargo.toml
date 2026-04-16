@@ -1,56 +1,98 @@
 [package]
 name = "aethelix_core"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Satellite Telemetry State Estimation Framework"
+description = "Satellite Telemetry Causal Diagnostic Framework — Flight & Ground"
 license = "Apache-2.0"
 repository = "https://github.com/rudywasfound/aethelix"
 
+# Ground binary (requires std features)
 [[bin]]
 name = "aethelix_core"
 path = "src/bin/main.rs"
+required-features = ["ground"]
+
+# LEON3 flight benchmark binary (no_std)
+[[bin]]
+name = "leon3_bench"
+path = "src/bin/leon3_bench.rs"
+required-features = ["flight"]
 
 [lib]
 name = "aethelix_core"
 path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]  # Both dynamic lib (for Python) and static lib
+# cdylib:    Python extension (.so)          — ground feature only
+# rlib:      Rust library                   — used by both features
+# staticlib: C/Ada FFI for LEON3 bare-metal — flight feature
+crate-type = ["cdylib", "rlib", "staticlib"]
+
+# ── Dependencies ────────────────────────────────────────────────────────────────
 
 [dependencies]
-# Numerical computation
-nalgebra = "0.32"
-ndarray = "0.15"
 
-# Async runtime
+# Flight-only: fixed-point math for SPARC/RISC-V without FPU
+micromath = { version = "2", optional = true, default-features = false }
+
+# Ground-only: numerical computation
+nalgebra = { version = "0.32", optional = true }
+ndarray  = { version = "0.15", optional = true }
+
+# Ground-only: async runtime
 tokio = { version = "1.35", features = ["full"], optional = true }
 
-# Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# Ground-only: serialization
+serde      = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
 
-# Python FFI
+# Ground-only: Python FFI
 pyo3 = { version = "0.21", features = ["extension-module"], optional = true }
 
-# Logging
-log = "0.4"
-env_logger = "0.10"
+# Ground-only: logging (requires std)
+log         = { version = "0.4", optional = true }
+env_logger  = { version = "0.10", optional = true }
 
-# Time handling
-chrono = { version = "0.4", features = ["serde"] }
+# Ground-only: time handling
+chrono = { version = "0.4", features = ["serde"], optional = true }
 
-# Error handling
-thiserror = "1.0"
-anyhow = "1.0"
+# Ground-only: error handling (flight uses bare Result<_, u8>)
+thiserror = { version = "1.0", optional = true }
+anyhow    = { version = "1.0", optional = true }
 
 [dev-dependencies]
-criterion = "0.5"  # Benchmarking
+criterion = "0.5"   # Benchmarking (ground only)
 
+# ── Feature flags ───────────────────────────────────────────────────────────────
 [features]
-default = ["python", "async"]
-python = ["pyo3"]
-async = ["tokio"]
-wasm = []  # For wasm-pack compilation
 
+# Flight: bare-metal no_std for LEON3 OBC
+# Build: cargo +nightly build --target sparc-unknown-none-elf --features flight --no-default-features
+flight = ["micromath"]
+
+# Ground: full Python/async stack for ground-station use
+# Build: cargo build --features ground  (default)
+ground = ["python", "async", "std"]
+
+# Sub-features (ground only)
+python = ["pyo3"]
+async  = ["tokio"]
+std    = [
+    "serde", "serde_json", "log", "env_logger", "chrono",
+    "nalgebra", "ndarray", "thiserror", "anyhow",
+]
+
+# Default build targets the ground station
+default = ["ground"]
+
+# ── Release profile: size-optimised for LEON3 flash budget ─────────────────────
 [profile.release]
-opt-level = 3
-lto = true
+opt-level     = "s"   # Optimize for size (critical for 64 KB flash budget)
+lto           = true
 codegen-units = 1
+panic         = "abort"  # No unwinding — required for no_std
+strip         = true     # Strip debug symbols from release binary
+
+# ── Dev profile: keep fast for ground-station iteration ────────────────────────
+[profile.dev]
+opt-level = 0
+debug     = true
+panic     = "unwind"     # Enable backtraces in ground dev

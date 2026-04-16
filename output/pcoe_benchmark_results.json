@@ -1,0 +1,56 @@
+{
+  "mean_improvement_pct": 45.5583479020979,
+  "target_met": true,
+  "eol_definition": "capacity < 1.4 Ah (70% of 2.0 Ah)",
+  "baseline": "NASA threshold rule: capacity < 1.6 Ah",
+  "batteries": [
+    {
+      "battery": "B0005",
+      "source": "synthetic (NASA physics model)",
+      "n_cycles": 165,
+      "eol_cycle": 66,
+      "eol_capacity": 1.3793924183072799,
+      "threshold_cycle": 40,
+      "aethelix_cycle": 10,
+      "threshold_lead": 26,
+      "aethelix_lead": 56,
+      "improvement_pct": 45.45454545454545
+    },
+    {
+      "battery": "B0006",
+      "source": "synthetic (NASA physics model)",
+      "n_cycles": 165,
+      "eol_cycle": 64,
+      "eol_capacity": 1.376487784363352,
+      "threshold_cycle": 39,
+      "aethelix_cycle": 10,
+      "threshold_lead": 25,
+      "aethelix_lead": 54,
+      "improvement_pct": 45.3125
+    },
+    {
+      "battery": "B0018",
+      "source": "synthetic (NASA physics model)",
+      "n_cycles": 165,
+      "eol_cycle": 65,
+      "eol_capacity": 1.3959793422048652,
+      "threshold_cycle": 40,
+      "aethelix_cycle": 10,
+      "threshold_lead": 25,
+      "aethelix_lead": 55,
+      "improvement_pct": 46.15384615384615
+    },
+    {
+      "battery": "B0025",
+      "source": "synthetic (NASA physics model)",
+      "n_cycles": 165,
+      "eol_cycle": 64,
+      "eol_capacity": 1.3668775091474075,
+      "threshold_cycle": 39,
+      "aethelix_cycle": 10,
+      "threshold_lead": 25,
+      "aethelix_lead": 54,
+      "improvement_pct": 45.3125
+    }
+  ]
+}

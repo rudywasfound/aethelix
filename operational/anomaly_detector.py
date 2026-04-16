@@ -35,8 +35,9 @@ def fast_ks_2samp(data1: np.ndarray, data2: np.ndarray) -> Tuple[float, float]:
     d = np.max(np.abs(cdf1 - cdf2))
     
     en = np.sqrt(n1 * n2 / (n1 + n2))
-    # Asymptotic approximation of the true KS p-value formula
-    pval = 2 * np.exp(-2.0 * (en * d) ** 2)
+    # Asymptotic approximation of the true KS p-value formula (with Stephen's modification)
+    z = (en + 0.12 + 0.11 / en) * d
+    pval = 2 * np.exp(-2.0 * z ** 2)
     return d, min(float(pval), 1.0)
 
 class SlidingWindowDetector:
@@ -175,3 +176,58 @@ class SlidingWindowDetector:
                 ref_q.append(val)
 
         return anomalies
+
+class CycleLevelDetector:
+    """
+    Cross-cycle degradation detector for long-term health monitoring.
+    
+    Instead of tick-by-tick streaming detection (like SlidingWindowDetector),
+    this compares the full distribution of a given cycle's feature curve 
+    (e.g., a discharge voltage profile) against a composite healthy reference 
+    built from the first REF_CYCLES cycles using a Kolmogorov-Smirnov test.
+    """
+
+    def __init__(
+        self,
+        ref_cycles: int = 10,
+        p_threshold: float = 0.01,
+        persist_cycles: int = 2,
+    ):
+        self.ref_cycles = ref_cycles
+        self.p_threshold = p_threshold
+        self.persist_cycles = persist_cycles
+
+        self.ref_samples = []
+        self.alarm_streak = 0
+        self.first_alarm_cycle = -1
+        self.is_alarming = False
+
+    def process_cycle(self, cycle_index: int, curve: np.ndarray) -> bool:
+        """
+        Process a single completed cycle's data curve.
+        Returns True if a persistent degradation is detected.
+        """
+        if len(curve) == 0:
+            return self.is_alarming
+
+        if cycle_index < self.ref_cycles:
+            self.ref_samples.extend(curve.tolist())
+            return False
+
+        if not self.ref_samples:
+            return False
+
+        # KS 2-sample test: current cycle's curve vs. healthy reference stack
+        _, p_val = fast_ks_2samp(np.array(self.ref_samples), curve)
+
+        if p_val < self.p_threshold:
+            self.alarm_streak += 1
+            if self.alarm_streak == 1:
+                self.first_alarm_cycle = cycle_index
+            if self.alarm_streak >= self.persist_cycles:
+                self.is_alarming = True
+        else:
+            self.alarm_streak = 0
+
+        return self.is_alarming
+

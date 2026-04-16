@@ -1,0 +1,47 @@
+# .cargo/config.toml — Cross-compilation configuration for Aethelix flight core.
+#
+# Configured for LEON3 (SPARC V8, 32-bit) using the Frontgrade Gaisler BCC2
+# toolchain (sparc-gaisler-elf-gcc) or standard SPARC GCC cross-compiler.
+#
+# Prerequisites:
+#   rustup toolchain install nightly
+#   rustup +nightly target add sparc-unknown-none-elf
+#
+# Preferred toolchains (in order of preference):
+#   1. Frontgrade BCC2: sparc-gaisler-elf-gcc  (LEON3-specific, best compatibility)
+#   2. Generic SPARC:   sparc-elf-gcc           (from crosstool-NG or RTEMS)
+#   3. LLVM/Clang:      clang --target=sparc-unknown-none-elf
+#
+# Install BCC2: https://www.gaisler.com/index.php/downloads/compilers
+
+[target.sparc-unknown-none-elf]
+# Use BCC2 if available; fall back to generic SPARC GCC.
+# Uncomment the correct linker for your toolchain:
+# linker = "sparc-gaisler-elf-gcc"   # Frontgrade BCC2 (preferred for LEON3)
+# linker = "sparc-elf-gcc"           # Generic SPARC cross-compiler
+linker = "rust-lld"                  # LLVM lld (default, no external toolchain needed)
+
+rustflags = [
+    # Target the LEON3 CPU specifically (SPARC V8 with LEON extensions)
+    "-Ctarget-cpu=leon3",
+    # Soft-float ABI: LEON3 may lack FPU (check your specific variant)
+    # Remove this if your LEON3 has an FPU (e.g. LEON4/GR712RC has GRFPU)
+    "-Ctarget-feature=+soft-float",
+    # Enable link-time optimisation for size
+    "-Clto=fat",
+    # Abort on panic (no unwinding in flight code)
+    "-Cpanic=abort",
+    # Optimize for size
+    "-Copt-level=s",
+]
+
+[target.sparc-unknown-none-elf.env]
+# Set SPARC sysroot if using BCC2
+# SYSROOT = "/opt/bcc2/sparc-gaisler-elf"
+
+# ── Build settings ───────────────────────────────────────────────────────────────
+
+[build]
+# Default target for `cargo build` remains the host (ground station)
+# Use --target explicitly for cross-compilation
+# target = "sparc-unknown-none-elf"  # Uncomment to make SPARC the default
