@@ -368,6 +368,17 @@ Aethelix's explicit causal DAG enables:
 
 ---
 
+## Contact & Collaboration
+
+Aethelix is an active research project. If you are interested in contributing, have technical questions, or wish to discuss aerospace applications, feel free to reach out:
+
+* **Maintainer:** Atiksh Sharma
+* **Email:** atsharma623@gmail.com
+
+
+For bug reports or feature requests, please open a GitHub Issue.
+
+
 ## Citation
 
 If you use Aethelix in your research or mission operations, please cite it as:
