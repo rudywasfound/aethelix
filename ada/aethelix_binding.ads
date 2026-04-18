@@ -117,4 +117,14 @@ package Aethelix_Binding is
           Convention    => C,
           External_Name => "aethelix_reset_state";
 
+   --  Recovery handler callback type
+   type Recovery_Handler_Ptr is access procedure (Fault_Id : Int)
+     with Convention => C;
+
+   --  Register an active recovery handler callback for the FDIR framework.
+   procedure Register_Recovery_Handler (Handler : Recovery_Handler_Ptr)
+     with Import        => True,
+          Convention    => C,
+          External_Name => "register_recovery_handler";
+
 end Aethelix_Binding;

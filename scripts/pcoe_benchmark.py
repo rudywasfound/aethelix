@@ -40,13 +40,13 @@ from pathlib import Path
 
 import numpy as np
 
-# ── Path setup ────────────────────────────────────────────────────────────────
+# Path setup 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from operational.anomaly_detector import CycleLevelDetector
 
-# ── Configuration ─────────────────────────────────────────────────────────────
+# Configuration
 DATA_DIR   = REPO_ROOT / "data" / "pcoe_battery"
 OUT_DIR    = REPO_ROOT / "output"
 
@@ -60,7 +60,7 @@ ALL_BATTERIES = ["B0005", "B0006", "B0018", "B0025"]
 # Zenodo open-access CSV mirror (CSV conversions of the original MATLAB .mat files)
 ZENODO_BASE = "https://zenodo.org/record/3402516/files"
 
-# ── Dataset loader ─────────────────────────────────────────────────────────────
+# Dataset loader 
 
 def try_download(battery_id: str) -> bool:
     """Attempt to download battery CSV from Zenodo. Returns True if successful."""
@@ -144,7 +144,7 @@ def synthetic_battery(battery_id: str, seed: int = 0) -> dict:
             "volts": volts, "temps": temps}
 
 
-# ── Detection methods ─────────────────────────────────────────────────────────
+# Detection methods
 
 def threshold_detection_cycle(caps: np.ndarray) -> int:
     """NASA threshold method: fires first cycle where capacity < WARN_AH (80%)."""
@@ -201,7 +201,7 @@ def aethelix_detection_cycle(data: dict) -> int:
     return len(volts) - 1  # Degradation not detected before end of dataset
 
 
-# ── Per-battery benchmark ─────────────────────────────────────────────────────
+# Per-battery benchmark 
 
 def benchmark_battery(battery_id: str, seed: int, allow_download: bool) -> dict:
     print(f"\n  ── {battery_id} ──")
@@ -250,7 +250,7 @@ def benchmark_battery(battery_id: str, seed: int, allow_download: bool) -> dict:
     return result
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# Entry point
 
 def run_pcoe_benchmark(batteries=None, allow_download=True):
     batteries = batteries or ALL_BATTERIES
@@ -267,7 +267,7 @@ def run_pcoe_benchmark(batteries=None, allow_download=True):
     for i, bat in enumerate(batteries):
         results.append(benchmark_battery(bat, seed=42 + i, allow_download=allow_download))
 
-    # ── Summary table ─────────────────────────────────────────────────────────
+    # Summary table
     print()
     print("=" * 70)
     print("  Summary: Detection Lead Time vs NASA Threshold Baseline")
@@ -300,7 +300,7 @@ def run_pcoe_benchmark(batteries=None, allow_download=True):
     print("  4. LEAN      — <8 KB RAM, runs live on LEON3 OBC flash at 50 MHz")
     print("=" * 70)
 
-    # ── Persist results ───────────────────────────────────────────────────────
+    # Persist results
     OUT_DIR.mkdir(exist_ok=True)
     out_path = OUT_DIR / "pcoe_benchmark_results.json"
     with open(out_path, "w") as f:

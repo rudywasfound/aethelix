@@ -36,7 +36,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from causal_graph.graph_definition import CausalGraph, NodeType
 
-# ── Constants ──────────────────────────────────────────────────────────────────
+
 MAGIC = bytes([0xCA, 0x05, 0xAE, 0x01])
 
 NODE_TYPE_MAP = {
@@ -47,8 +47,6 @@ NODE_TYPE_MAP = {
 
 MAX_BINARY_SIZE = 4096   # Flash budget for the embedded graph
 
-
-# ── Compiler ───────────────────────────────────────────────────────────────────
 
 def compile_graph(
     output_bin:  Path = None,
@@ -84,7 +82,6 @@ def compile_graph(
 
     print(f"  Nodes: {n_nodes}  |  Edges: {n_edges}")
 
-    # ── Build binary ──────────────────────────────────────────────────────────
     buf = bytearray()
 
     # Header
@@ -117,7 +114,6 @@ def compile_graph(
     if skipped:
         print(f"  WARNING: {skipped} edges skipped (unknown node reference)")
 
-    # ── Write binary ──────────────────────────────────────────────────────────
     output_bin.write_bytes(bytes(buf))
     size_bytes = len(buf)
     budget_ok  = size_bytes <= MAX_BINARY_SIZE
@@ -125,7 +121,6 @@ def compile_graph(
     print(f"  Written: {output_bin}  ({size_bytes} bytes)")
     print(f"  Budget:  ≤{MAX_BINARY_SIZE} bytes → {'✓ OK' if budget_ok else '✗ EXCEEDS BUDGET'}")
 
-    # ── Node ID mapping JSON ──────────────────────────────────────────────────
     root_cause_ids = {
         name: node_id_map[name]
         for name in node_names
@@ -151,7 +146,6 @@ def compile_graph(
     output_ids.write_text(json.dumps(id_info, indent=2))
     print(f"  Written: {output_ids}")
 
-    # ── C header with fault ID constants ─────────────────────────────────────
     output_hdr.parent.mkdir(parents=True, exist_ok=True)
     _write_c_header(output_hdr, root_cause_ids, n_nodes, n_edges)
     print(f"  Written: {output_hdr}")
@@ -188,8 +182,6 @@ def _write_c_header(path: Path, root_cause_ids: dict, n_nodes: int, n_edges: int
     ]
     path.write_text("\n".join(lines))
 
-
-# ── Verifier ───────────────────────────────────────────────────────────────────
 
 def verify_binary(bin_path: Path = None) -> bool:
     """Read back and verify structural integrity of the compiled binary."""
@@ -228,9 +220,6 @@ def verify_binary(bin_path: Path = None) -> bool:
 
     print(f"  Verification PASSED — {n_nodes} nodes, {n_edges} edges, {len(data)} bytes")
     return True
-
-
-# ── Entry point ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print("=" * 60)

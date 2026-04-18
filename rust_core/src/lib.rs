@@ -34,7 +34,7 @@ fn flight_panic(_info: &core::panic::PanicInfo) -> ! {
         unsafe { core::arch::asm!("nop", options(nomem, nostack)); }
     }
 }
-// ── Flight modules (always compiled when `flight` feature is active) ──────────
+// Flight modules (always compiled when `flight` feature is active)
 #[cfg(feature = "flight")]
 pub mod flight;
 
@@ -43,7 +43,7 @@ pub mod flight;
 #[cfg(feature = "flight")]
 pub mod ffi;
 
-// ── Ground modules (require std) ─────────────────────────────────────────────
+// Ground modules (require std)
 #[cfg(feature = "std")]
 pub mod error;
 
@@ -106,7 +106,7 @@ pub mod python_bindings;
 /// Framework version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// ── Ground: process_measurement helper ───────────────────────────────────────
+// Ground: process_measurement helper
 #[cfg(feature = "std")]
 pub fn process_measurement(
     measurement: &measurement::Measurement,
@@ -118,7 +118,7 @@ pub fn process_measurement(
     Ok(kalman.get_estimate())
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// Tests
 #[cfg(test)]
 mod tests {
     use super::*;

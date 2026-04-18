@@ -80,7 +80,7 @@ unsafe fn uart_u32(mut n: u32) {
     }
 }
 
-// ── LEON3 hardware cycle counter (ASR16) ─────────────────────────────────────
+// LEON3 hardware cycle counter (ASR16)
 // LEON3 exposes an internal performance counter in ASR16 (via rdsr instruction).
 // This is SPARC V8 ASR access — LEON3 specific.
 
@@ -101,7 +101,7 @@ unsafe fn read_cycle_counter() -> u32 {
     0u32
 }
 
-// ── Synthetic CCSDS test frame ─────────────────────────────────────────────
+// Synthetic CCSDS test frame
 /// Build a minimal 8-byte CCSDS Space Packet for a given APID and i16 value.
 fn make_test_frame(apid: u16, value: i16) -> [u8; 8] {
     [
@@ -114,7 +114,6 @@ fn make_test_frame(apid: u16, value: i16) -> [u8; 8] {
     ]
 }
 
-// ── Entry point ───────────────────────────────────────────────────────────────
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     const ITERS: u32 = 1000;
@@ -135,7 +134,7 @@ pub extern "C" fn _start() -> ! {
         make_test_frame(0x008, -2_000),  // bus_current
     ];
 
-    // ── Warm-up the caches and branch predictor ──────────────────────────
+    // Warm-up the caches and branch predictor
     for _ in 0..50 {
         for f in &frames {
             unsafe {
@@ -145,7 +144,7 @@ pub extern "C" fn _start() -> ! {
     }
     unsafe { aethelix_reset_state(&mut state); }
 
-    // ── Timed benchmark ──────────────────────────────────────────────────
+    // Timed benchmark 
     let t_start = unsafe { read_cycle_counter() };
 
     for _ in 0..ITERS {
@@ -162,7 +161,7 @@ pub extern "C" fn _start() -> ! {
     // latency_ns = (per_frm * 1000) / LEON3_FREQ_MHZ  (avoids division by freq first)
     let lat_ns  = (per_frm * 1000) / LEON3_FREQ_MHZ;
 
-    // ── UART output ──────────────────────────────────────────────────────
+    // UART output
     unsafe {
         uart_puts("\r\n===============================================\r\n");
         uart_puts(" AETHELIX LEON3 CYCLE-COUNT BENCHMARK\r\n");

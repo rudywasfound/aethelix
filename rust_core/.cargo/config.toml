@@ -39,8 +39,6 @@ rustflags = [
 # Set SPARC sysroot if using BCC2
 # SYSROOT = "/opt/bcc2/sparc-gaisler-elf"
 
-# ── Build settings ───────────────────────────────────────────────────────────────
-
 [build]
 # Default target for `cargo build` remains the host (ground station)
 # Use --target explicitly for cross-compilation

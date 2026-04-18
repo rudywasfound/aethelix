@@ -67,7 +67,7 @@ impl Q15 {
     }
 }
 
-// ── Arithmetic traits (all saturating) ───────────────────────────────────────
+// Arithmetic traits (all saturating)
 
 impl Add for Q15 {
     type Output = Self;
@@ -97,7 +97,7 @@ impl Mul for Q15 {
     fn mul(self, rhs: Self) -> Self { self.mul_sat(rhs) }
 }
 
-// ── Conversion helpers ────────────────────────────────────────────────────────
+// Conversion helpers 
 
 /// Normalize a raw telemetry integer value into Q15 range.
 ///
@@ -118,7 +118,7 @@ pub fn normalize_q15(raw: i32, nom_mean: i32, range: i32) -> Q15 {
     Q15(scaled.clamp(i16::MIN as i32, i16::MAX as i32) as i16)
 }
 
-// ── Unit tests ────────────────────────────────────────────────────────────────
+// Unit tests
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,7 +169,7 @@ mod tests {
     }
 }
 
-// ── Kani proofs — mathematically prove no panic for ANY i16 input ─────────────
+// Kani proofs — mathematically prove no panic for ANY i16 input
 #[cfg(kani)]
 mod kani_proofs {
     use super::*;

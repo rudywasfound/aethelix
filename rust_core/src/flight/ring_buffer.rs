@@ -109,7 +109,7 @@ impl<const N: usize> Q15RingBuffer<N> {
     }
 }
 
-// ── Unit tests ────────────────────────────────────────────────────────────────
+// Unit tests 
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,7 +162,7 @@ mod tests {
     }
 }
 
-// ── Kani proofs ───────────────────────────────────────────────────────────────
+// Kani proofs
 #[cfg(kani)]
 mod kani_proofs {
     use super::*;

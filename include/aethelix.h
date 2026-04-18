@@ -4,7 +4,7 @@
  * Compatible with: LEON3 (SPARC V8), RTEMS, VxWorks, bare-metal C/Ada FDIR.
  * Generated from Rust source (rust_core/src/ffi.rs) via cbindgen.
  *
- * ── Quick start (C) ──────────────────────────────────────────────────────────
+ * Quick start (C) 
  *
  *   #include "aethelix.h"
  *   #include <string.h>
@@ -21,10 +21,10 @@
  *       handle_fault(&alert);
  *   }
  *
- * ── Quick start (Ada) ────────────────────────────────────────────────────────
+ * Quick start (Ada) 
  *   See ada/aethelix_binding.ads for a type-safe Ada 2012 thin binding.
  *
- * ── ECSS references ──────────────────────────────────────────────────────────
+ * ECSS references 
  *   ECSS-E-ST-10-03C  CCSDS Space Packet Protocol
  *   ECSS-E-ST-40C     Software Engineering (req. basis for formal verification)
  *   ECSS-Q-ST-80C     Software Product Assurance
@@ -40,18 +40,18 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
-/* ── Version ──────────────────────────────────────────────────────────────── */
+/* Version*/
 #define AETHELIX_VERSION_MAJOR  0U
 #define AETHELIX_VERSION_MINOR  2U
 #define AETHELIX_VERSION_PATCH  0U
 
-/* ── Alert level severity ─────────────────────────────────────────────────── */
+/* Alert level severity */
 #define AETHELIX_LEVEL_NONE      0U  /**< Nominal — no fault detected          */
 #define AETHELIX_LEVEL_WARNING   1U  /**< Sub-threshold anomaly; monitor       */
 #define AETHELIX_LEVEL_CAUTION   2U  /**< Anomaly confirmed; prepare action    */
 #define AETHELIX_LEVEL_CRITICAL  3U  /**< Immediate FDIR action required       */
 
-/* ── Telemetry channel indices (bit positions in evidence_mask) ───────────── */
+/* Telemetry channel indices (bit positions in evidence_mask) */
 #define AETHELIX_CH_SOLAR_INPUT   0U  /**< Solar input power (W)               */
 #define AETHELIX_CH_BATTERY_VOLT  1U  /**< Battery voltage (mV)                */
 #define AETHELIX_CH_BATTERY_SOC   2U  /**< Battery state-of-charge (%)         */
@@ -61,7 +61,7 @@ extern "C" {
 #define AETHELIX_CH_PAYLOAD_TEMP  6U  /**< Payload temperature (0.01°C)        */
 #define AETHELIX_CH_BUS_CURRENT   7U  /**< Bus current (mA)                    */
 
-/* ── CCSDS APID assignments (configure to match your spacecraft) ──────────── */
+/* CCSDS APID assignments (configure to match your spacecraft) */
 #define AETHELIX_APID_SOLAR_INPUT   0x001U
 #define AETHELIX_APID_BATTERY_VOLT  0x002U
 #define AETHELIX_APID_BATTERY_SOC   0x003U
@@ -71,17 +71,17 @@ extern "C" {
 #define AETHELIX_APID_PAYLOAD_TEMP  0x007U
 #define AETHELIX_APID_BUS_CURRENT   0x008U
 
-/* ── Root-cause fault IDs (auto-generated from causal_graph.bin) ─────────── */
+/* ── Root-cause fault IDs (auto-generated from causal_graph.bin) */
 /* Include aethelix_graph_ids.h for the full enumeration.                       */
 #include "aethelix_graph_ids.h"
 
-/* ── Return codes ─────────────────────────────────────────────────────────── */
+/* Return codes  */
 #define AETHELIX_OK            0    /**< Success                               */
 #define AETHELIX_ERR_TOO_SHORT 1    /**< Buffer < 6 bytes (no CCSDS header)   */
 #define AETHELIX_ERR_BAD_LEN   2    /**< Payload length mismatch in header     */
 #define AETHELIX_ERR_NULL_PTR  (-1) /**< Null pointer argument                 */
 
-/* ── FDIR Alert (12 bytes, packed, C ABI compatible) ─────────────────────── */
+/* FDIR Alert (12 bytes, packed, C ABI compatible) */
 typedef struct __attribute__((packed)) {
     uint8_t  level;             /**< AETHELIX_LEVEL_* severity                */
     uint8_t  root_cause_id;     /**< AETHELIX_FAULT_* or 0xFF = no fault      */
@@ -95,12 +95,12 @@ typedef struct __attribute__((packed)) {
 /* Compile-time size assertion (14 bytes with __packed__) */
 typedef char _aethelix_alert_size_check[sizeof(AethelixAlert) == 12 ? 1 : -1];
 
-/* ── Opaque persistent state ──────────────────────────────────────────────── */
+/* Opaque persistent state */
 /* Caller must allocate >= aethelix_state_size() bytes and zero the buffer    */
 /* before the first call to aethelix_process_frame().                          */
 typedef struct AethelixState AethelixState;
 
-/* ── API ──────────────────────────────────────────────────────────────────── */
+/* API */
 
 /**
  * Process one CCSDS Space Packet through the Aethelix diagnostic engine.
@@ -135,6 +135,15 @@ void aethelix_reset_state(AethelixState *state);
  * @return Exact byte size of AethelixState in this firmware build.
  */
 uint32_t aethelix_state_size(void);
+
+/**
+ * Register an active recovery handler callback for the FDIR framework.
+ * This instructs Aethelix to actively call the function pointer supplied
+ * the moment a root cause fault is isolated.
+ *
+ * @param handler Function pointer taking an integer fault_id to execute recovery
+ */
+void register_recovery_handler(void (*handler)(int fault_id));
 
 #ifdef __cplusplus
 }

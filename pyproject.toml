@@ -1,0 +1,31 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "aethelix"
+version = "1.0.1"
+description = "Aethelix: Physics-Based Causal Inference for Real-Time Satellite Fault Detection"
+readme = "README.md"
+authors = [
+    { name = "Atiksh Sharma" },
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.20.0",
+    "matplotlib>=3.3.0",
+    "pandas>=1.3.0",
+    "scipy>=1.7.0",
+    "streamlit>=1.10.0",
+    "graphviz>=0.17",
+    "plotly>=5.0.0",
+    "PyYAML>=6.0",
+]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+manifest-path = "rust_core/Cargo.toml"
+module-name = "aethelix.rust_core"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

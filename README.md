@@ -147,24 +147,64 @@ Implementing Aethelix's Causal Inference natively on-board or directly in missio
 
 ---
 
-### Installation
+### 1. Ground Segment (Data Center & Python)
 
+**Mission Control in a Box (Docker)**
+The easiest way to launch Aethelix is via Docker Compose, which spins up the Streamlit dashboard and pipeline instantly.
 ```bash
-# Clone the repository
 git clone https://github.com/rudywasfound/aethelix
 cd aethelix
-
-# Recommended: setup virtual environment
-python -m venv venv
-source venv/bin/activate  # venv\Scripts\activate on Windows
-
-# Install all dependencies
-pip install -r requirements.txt
+docker-compose up -d
 ```
+The dashboard starts dynamically on port `8501`. You can drop realistic PCoE datasets directly into the mapped `/data` folder.
+
+**Native Python Package**
+Aethelix is packaged with `maturin` and PyO3. Install it natively as a Python module:
+```bash
+# Inside a virtual environment
+pip install -e .
+```
+
+### 2. Space Segment (Flight Software)
+
+Aethelix targets two dominant architectures as part of the "Strategic Autonomy" Dual-Core strategy: the legacy **LEON3 (SPARC)** fleet, and the next-generation **Shakti (RISC-V)** missions.
+
+**C/C++ Integration (CMake)**
+Drop Aethelix into your embedded flight codebase simply using CMake's `FetchContent` or `add_subdirectory`. Select your compiler target:
+```bash
+# LEON3 (SPARC) Industry Standard Profile
+cmake -DPROFILE_LEON3=ON ..
+
+# RISC-V (Shakti) New Norm Profile
+cmake -DPROFILE_SHAKTI=ON ..
+```
+
+**Ada Integration (Alire/GNAT)**
+Aerospace middlewares relying on Ada can include `aethelix.gpr` directly in their Alire workspace. GNAT will instantly resolve the bindings natively.
+
+---
+
+## Active Recovery (Sentinel Gap)
+
+Aethelix is not just a passive diagnostic tool; it possesses an **Active Recovery Callback Interface**. Through the C/Ada FFI, your FDIR middleware can register a recovery function that Aethelix will trigger *the exact moment* a root cause is successfully isolated.
+
+```c
+// Example: Active Recovery execution on Deep Space Node
+void critical_recovery(int fault_id) {
+    if (fault_id == AETHELIX_FAULT_BATTERY_THERMAL) {
+        // Trigger emergency bus cooling mechanisms
+    }
+}
+
+// Bind to Aethelix FDIR Framework
+register_recovery_handler(critical_recovery);
+```
+
+---
 
 ### Quick Run
 ```bash
-python main.py
+python dashboard/app.py
 ```
 This runs the full diagnostic pipeline on a simulated multi-fault scenario (Solar + Battery aging).
 
@@ -270,18 +310,18 @@ MEASUREMENT:
 
 ## Roadmap: Phases 3-4
 
-### Phase 3: Expand Subsystems (Weeks 5-6)
-- [x] Add thermal subsystem to causal graph
-- [x] Update propagation paths (power ↔ thermal ↔ payload)
-- [x] Multi-fault scenarios (e.g., thermal drift + solar degradation)
-- [x] Improved telemetry plots and textual explanations
+### Completed Phases (1-4)
+- [x] Integrate high-performance C/Ada flight FFI boundary.
+- [x] Extend causal graph to power-thermal coupling.
+- [x] Multi-fault scenarios and cycle-level continuous KS-testing.
+- [x] Dual-Core execution framework via CMake (LEON3 + RISC-V).
+- [x] Dockerization and seamless Python `pip` packaging.
+- [x] Sentinel Gap closure via Active Recovery Callback (`register_recovery_handler`).
 
-### Phase 4: Experimental Validation (Weeks 7-8)
-- [x] Benchmark: Correlation vs. rule-based vs. Bayesian reasoning
-  - *Metric:* Accuracy of root cause ranking
-  - *Condition:* Vary missing data, noise levels, simultaneous faults
-- [x] Paper-style report (ICRA/AIAA format)
-- [x] Public GitHub repo with reproducible notebooks
+### Phase 5: Orbital Autonomy (Weeks 9-10)
+- [ ] Connect with Core Flight System (cFS) components.
+- [ ] Communications subsystem monitoring (payload health checks).
+- [ ] Fleet-wide causal telemetry syncing mechanism for constellation awareness.
 
 ---
 
@@ -289,19 +329,20 @@ MEASUREMENT:
 
 ```text
 aethelix/
+├── ada/                           # Ada 2012 FDIR bindings and GNAT project
 ├── analysis/                      # Deviation quantification
 ├── causal_graph/                  # DAG definitions & Bayesian inference
+├── dashboard/                     # Streamlit frontend & Mission Control GUI
 ├── data/                          # Telemetry datasets
 ├── docs/                          # Detailed documentation and diagrams
 ├── examples/                      # Example workflows (e.g., GSAT-6A)
-├── forensics/                     # Post-mission analysis tools
-├── operational/                   # Real-time operator integration
-├── rust_core/                     # High-performance Rust backend
+├── include/                       # C headers for Flight FFI (aethelix.h)
+├── rust_core/                     # High-performance bare-metal Rust Core
 ├── scripts/                       # Local build and benchmark scripts
 ├── simulator/                     # Subsystem simulation
-├── tests/                         # Unit and integration tests
-├── visualization/                 # Plotters and renderers
-├── main.py                        # Entry point for local runs
+├── Dockerfile                     # Mission-Control-in-a-Box container
+├── CMakeLists.txt                 # Embedded FSW Dual-Core compilation build
+├── pyproject.toml                 # pip dependency structure & Maturin compiler
 └── README.md
 ```
 

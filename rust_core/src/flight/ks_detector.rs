@@ -22,7 +22,7 @@
 use crate::flight::fixed_point::Q15;
 use crate::flight::fdir_output::AethelixState;
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// Constants
 
 pub const NUM_CHANNELS: usize = 8;   // EPS/TCS primary channels
 pub const REF_SIZE:     usize = 128; // Reference window depth (samples)
@@ -37,7 +37,7 @@ pub const PERSIST: u8 = 4;
 /// p_threshold ≈ 0.005 at window sizes 64/128 corresponds to D ≈ 0.22–0.30.
 const KS_THRESHOLD_Q15: i16 = 0x1C00; // ≈ 0.22
 
-// ── Insertion sort (stack-safe, bounded) ──────────────────────────────────────
+// Insertion sort (stack-safe, bounded)
 
 /// Sort a small `i16` slice in-place using insertion sort.
 /// O(n²) — acceptable for n ≤ 128 on LEON3 (≈ 2 400 cycles worst case).
@@ -55,7 +55,7 @@ fn insertion_sort(arr: &mut [i16]) {
     }
 }
 
-// ── KS D-statistic (fixed-point merge walk) ───────────────────────────────────
+// KS D-statistic (fixed-point merge walk)
 
 /// Compute the KS D-statistic between two **sorted** `i16` slices.
 ///
@@ -74,19 +74,32 @@ fn ks_statistic(a: &[i16], b: &[i16]) -> Q15 {
 
     // Merge-walk: advance through both sorted arrays simultaneously.
     // At each step, compute |F1(x) - F2(x)| in integer arithmetic.
-    while i < a.len() || j < b.len() {
-        // Advance the pointer of the smaller current value
-        let advance_a = match (i < a.len(), j < b.len()) {
-            (true,  false) => true,
-            (false, true)  => false,
-            (true,  true)  => a[i] <= b[j],
-            _              => break,
-        };
+    while i < a.len() && j < b.len() {
+        if a[i] < b[j] {
+            let val = a[i];
+            while i < a.len() && a[i] == val { i += 1; }
+        } else if b[j] < a[i] {
+            let val = b[j];
+            while j < b.len() && b[j] == val { j += 1; }
+        } else {
+            let val = a[i];
+            while i < a.len() && a[i] == val { i += 1; }
+            while j < b.len() && b[j] == val { j += 1; }
+        }
+        let diff = (i as i32 * nb - j as i32 * na).abs();
+        if diff > d_max { d_max = diff; }
+    }
 
-        if advance_a { i += 1; } else { j += 1; }
+    while i < a.len() {
+        let val = a[i];
+        while i < a.len() && a[i] == val { i += 1; }
+        let diff = (i as i32 * nb - j as i32 * na).abs();
+        if diff > d_max { d_max = diff; }
+    }
 
-        // |CDF_a - CDF_b| = |i/na - j/nb| = |i*nb - j*na| / (na*nb)
-        // We track the numerator only (scale at the end).
+    while j < b.len() {
+        let val = b[j];
+        while j < b.len() && b[j] == val { j += 1; }
         let diff = (i as i32 * nb - j as i32 * na).abs();
         if diff > d_max { d_max = diff; }
     }
@@ -100,7 +113,7 @@ fn ks_statistic(a: &[i16], b: &[i16]) -> Q15 {
     Q15(d_q15.clamp(0, i16::MAX as i32) as i16)
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+
 
 /// Process one telemetry frame for a single channel and update alarm state.
 ///
@@ -116,7 +129,7 @@ pub fn process_channel(state: &mut AethelixState, channel: usize, sample: Q15) -
         return Q15::ZERO;
     }
 
-    // ── Push into current window ──────────────────────────────────────────
+    
     let cur_head = state.cur_heads[channel] as usize;
     state.cur_windows[channel][cur_head] = sample.0;
     state.cur_heads[channel] = (if cur_head + 1 >= CUR_SIZE { 0 } else { cur_head + 1 }) as u8;
@@ -127,7 +140,6 @@ pub fn process_channel(state: &mut AethelixState, channel: usize, sample: Q15) -
     let cur_len = state.cur_lens[channel] as usize;
     let ref_len = state.ref_lens[channel] as usize;
 
-    // ── Warm-up: not enough data yet ─────────────────────────────────────
     if cur_len < CUR_SIZE || ref_len < 20 {
         // Feed into reference window until it's primed
         let rh = state.ref_heads[channel] as usize;
@@ -139,7 +151,6 @@ pub fn process_channel(state: &mut AethelixState, channel: usize, sample: Q15) -
         return Q15::ZERO;
     }
 
-    // ── Copy windows to stack scratch and sort ────────────────────────────
     let mut cur_scratch = [0i16; CUR_SIZE];
     let mut ref_scratch = [0i16; REF_SIZE];
 
@@ -154,7 +165,6 @@ pub fn process_channel(state: &mut AethelixState, channel: usize, sample: Q15) -
 
     let d = ks_statistic(&ref_scratch[..ref_n], &cur_scratch[..cur_n]);
 
-    // ── Persistence logic ─────────────────────────────────────────────────
     if d.0 >= KS_THRESHOLD_Q15 {
         // Increment streak (capped at PERSIST to avoid u8 overflow)
         if state.alarm_streak[channel] < PERSIST {
@@ -162,7 +172,6 @@ pub fn process_channel(state: &mut AethelixState, channel: usize, sample: Q15) -
         }
 
         if state.alarm_streak[channel] >= PERSIST {
-            // Anomaly confirmed — return D as severity
             return d;
         }
     } else {
@@ -184,7 +193,7 @@ pub fn process_channel(state: &mut AethelixState, channel: usize, sample: Q15) -
     Q15::ZERO
 }
 
-// ── Unit tests ────────────────────────────────────────────────────────────────
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,7 +202,7 @@ mod tests {
     #[test]
     fn test_no_alarm_on_nominal_data() {
         let mut state = AethelixState::zeroed();
-        // Feed 300 identical samples — no distribution shift → no alarm
+        // Feed 300 identical samples - no distribution shift → no alarm
         for _ in 0..300 {
             let result = process_channel(&mut state, 0, Q15(1000));
             assert_eq!(result, Q15::ZERO, "Nominal data should not trigger alarm");
@@ -207,7 +216,7 @@ mod tests {
         for _ in 0..200 {
             process_channel(&mut state, 0, Q15(50));
         }
-        // Then inject a major shift — distribution jumps to +16000
+        // Then inject a major shift - distribution jumps to +16000
         let mut triggered = false;
         for _ in 0..100 {
             let r = process_channel(&mut state, 0, Q15(16_000));

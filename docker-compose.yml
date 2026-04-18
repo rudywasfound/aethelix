@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  mission-control:
+    build: .
+    container_name: aethelix-mission-control
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount the data directory so operators can drop CSVs into it and 
+      # the Streamlit dashboard sees them instantly.
+      - ./data:/app/data
+    environment:
+      - STREAMLIT_THEME_BASE=dark
+    restart: unless-stopped

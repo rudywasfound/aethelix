@@ -23,7 +23,7 @@
 static GRAPH_BIN: &[u8] =
     include_bytes!("../../../causal_graph/causal_graph.bin");
 
-// ── Format constants ──────────────────────────────────────────────────────────
+// Format constants
 pub const MAGIC: [u8; 4] = [0xCA, 0x05, 0xAE, 0x01];
 
 pub const NODE_ROOT:         u8 = 0;
@@ -37,7 +37,7 @@ pub const MAX_EDGES: usize = 160;
 /// Maximum BFS traversal depth (causal graph diameter is typically 4–5).
 pub const MAX_DEPTH: usize = 7;
 
-// ── Internal graph representation ─────────────────────────────────────────────
+// Internal graph representation
 
 #[derive(Copy, Clone, Default)]
 struct NodeMeta {
@@ -99,7 +99,7 @@ fn load_graph() -> Option<FlightGraph> {
     Some(graph)
 }
 
-// ── Public types ──────────────────────────────────────────────────────────────
+// Public types
 
 /// Top-ranked root cause hypothesis from the causal engine.
 #[repr(C)]
@@ -226,7 +226,7 @@ pub fn rank_root_causes(
     result
 }
 
-// ── Unit tests ────────────────────────────────────────────────────────────────
+// Unit tests
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,7 +250,7 @@ mod tests {
     }
 }
 
-// ── Kani proofs ───────────────────────────────────────────────────────────────
+// Kani proofs
 #[cfg(kani)]
 mod kani_proofs {
     use super::*;

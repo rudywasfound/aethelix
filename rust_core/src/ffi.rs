@@ -18,7 +18,7 @@ use crate::flight::ks_detector::process_channel;
 use crate::flight::causal_ranker::{rank_root_causes, MAX_NODES};
 use crate::flight::fixed_point::normalize_q15;
 
-// ── APID → channel mapping ────────────────────────────────────────────────────
+// APID → channel mapping 
 // Maps well-known CCSDS APIDs to Aethelix channel indices 0–7.
 // Configurable for each spacecraft by modifying this table (no recompile needed
 // if APID table is stored in EEPROM — add a `set_apid_map()` call to configure).
@@ -43,13 +43,18 @@ const APID_CHANNEL_MAP: [(u16, usize); 8] = [
     (0x008, 7),
 ];
 
-// ── Return codes (match aethelix.h) ──────────────────────────────────────────
+// Return codes (match aethelix.h)
 const RET_OK:        i32 =  0;
 const RET_TOO_SHORT: i32 =  1;
 const RET_BAD_LEN:   i32 =  2;
 const RET_NULL_PTR:  i32 = -1;
 
-// ── Main API ──────────────────────────────────────────────────────────────────
+// Global Recovery Handler 
+// Bare-metal safe global callback (assumes single-threaded cooperative OS or
+// interrupt-masked access if needed). 
+static mut RECOVERY_HANDLER: Option<extern "C" fn(i32)> = None;
+
+// Main API
 
 /// Process one CCSDS Space Packet through the Aethelix diagnostic engine.
 ///
@@ -81,40 +86,40 @@ pub unsafe extern "C" fn aethelix_process_frame(
     // Clear output alert at entry
     *alert_ref = AethelixAlert::NO_FAULT;
 
-    // ── Parse CCSDS packet ────────────────────────────────────────────────
+    // Parse CCSDS Packets
     let pkt = match parse_flight_packet(buf) {
         Ok(p)                          => p,
         Err(CcsdsError::BufferTooShort) => return RET_TOO_SHORT,
         Err(CcsdsError::LengthMismatch) => return RET_BAD_LEN,
     };
 
-    // ── Map APID to telemetry channel ─────────────────────────────────────
+    // Map APID to telemetry channel
     let channel = match APID_CHANNEL_MAP.iter().find(|(apid, _)| *apid == pkt.header.apid) {
         Some((_, ch)) => *ch,
         None          => return RET_OK, // Unknown APID — silently skip
     };
 
-    // ── Extract measurement (first i16 in payload, big-endian CCSDS) ─────
+    // Extract measurement (first i16 in payload, big-endian CCSDS)
     if (pkt.payload_len as usize) < 2 {
         return RET_OK; // No data to process
     }
     let raw_val = ((pkt.payload[0] as i16) << 8) | (pkt.payload[1] as i16);
 
-    // ── Normalize to Q15 using pre-calibrated mean/range ─────────────────
+    // Normalize to Q15 using pre-calibrated mean/range 
     let nom_mean  = state_ref.nom_means[channel] as i32;
     let nom_range = state_ref.nom_ranges[channel];
     let q15_val   = normalize_q15(raw_val as i32, nom_mean, nom_range);
 
-    // ── Run KS anomaly detection ──────────────────────────────────────────
+    // Run KS anomaly detection
     let severity = process_channel(state_ref, channel, q15_val);
     state_ref.frame_count = state_ref.frame_count.wrapping_add(1);
 
-    // ── No anomaly — return clean ─────────────────────────────────────────
+    // No anomaly — return clean
     if severity.0 == 0 {
         return RET_OK;
     }
 
-    // ── Anomaly detected — populate alert ────────────────────────────────
+    // Anomaly detected — populate alert
     alert_ref.evidence_mask |= 1u32 << channel;
 
     // Build severity array for causal ranker (only this channel is anomalous)
@@ -130,6 +135,11 @@ pub unsafe extern "C" fn aethelix_process_frame(
         alert_ref.root_cause_id   = hits[0].node_id;
         alert_ref.confidence_q15  = hits[0].score_q15;
         alert_ref.root_cause_2_id = hits[1].node_id;
+
+        // Trigger active recovery callback if registered
+        if let Some(handler) = RECOVERY_HANDLER {
+            handler(alert_ref.root_cause_id as i32);
+        }
     }
 
     // Set alert level from Q15 severity thresholds
@@ -161,4 +171,11 @@ pub unsafe extern "C" fn aethelix_reset_state(state: *mut AethelixState) {
 #[no_mangle]
 pub extern "C" fn aethelix_state_size() -> u32 {
     core::mem::size_of::<AethelixState>() as u32
+}
+
+/// Register a global recovery handler to be invoked dynamically when
+/// a root cause is isolated.
+#[no_mangle]
+pub unsafe extern "C" fn register_recovery_handler(handler: extern "C" fn(i32)) {
+    RECOVERY_HANDLER = Some(handler);
 }
