@@ -1,4 +1,4 @@
-
+<p align="center"> <img src="https://github.com/rudywasfound/aethelix/blob/master/docs/aethelix_logo.png?raw=true" alt="Aethelix Logo" width=200> </p>
 <h1 align="center"> Aethelix: Causal Inference for Multi-Fault Satellite Failures </h1>
 <p align="center">Framework for inferring root causes in satellite systems experiencing multiple simultaneous degradations.</p>
 <p align="center">
