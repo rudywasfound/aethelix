@@ -1,12 +1,14 @@
-# Aethelix: Causal Inference for Multi-Fault Satellite Failures
 
-![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Status](https://img.shields.io/badge/status-active-success)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19538163.svg)](https://doi.org/10.5281/zenodo.19538163)
+<h1 align="center"> Aethelix: Causal Inference for Multi-Fault Satellite Failures </h1>
+<p align="center">Framework for inferring root causes in satellite systems experiencing multiple simultaneous degradations.</p>
+<p align="center">
+<img src="https://img.shields.io/badge/python-3.8%2B-blue">
+<img src="https://img.shields.io/badge/license-MIT-green">
+<img src="https://img.shields.io/badge/status-active-success">
+<img src="https://zenodo.org/badge/DOI/10.5281/zenodo.19538163.svg" href="https://doi.org/10.5281/zenodo.19538163">
+</p>
 
 
-Framework for inferring root causes in satellite systems experiencing multiple simultaneous degradations.
 
 **Advantages:**
 - **Multi-fault diagnosis**: Handle 2+ simultaneous failures (e.g., solar degradation + battery aging)
