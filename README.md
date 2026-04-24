@@ -427,12 +427,10 @@ For bug reports or feature requests, please open a GitHub Issue.
 If you use Aethelix in your research or mission operations, please cite it as:
 
 ```bibtex
-@software{sharma2025aethelix,
-  author = {Atiksh Sharma},
-  title = {Aethelix: Physics-Based Causal Inference 
-           for Real-Time Satellite Fault Detection},
-  year = {2025},
-  url = {https://github.com/rudywasfound/aethelix},
-  note = {Open source, MIT License}
+@software{Atiksh Sharma,
+title={Aethelix: A Causal Inference for multi fault scenarios on a satellite.},
+DOI={10.5281/zenodo.19538163},
+publisher={Atiksh Sharma},
+author={Atiksh Sharma}
 }
 ```
