@@ -48,7 +48,7 @@ impl SpacePacket {
 
         // Byte 4 & 5: | Data Length(16) |
         let data_length = ((raw[4] as u16) << 8) | (raw[5] as u16);
-        let actual_data_len = (data_length + 1) as usize;
+        let actual_data_len = (data_length as usize) + 1;
 
         if raw.len() < Self::HEADER_SIZE + actual_data_len {
             return Err(Error::StreamError("Payload length mismatch".to_string()));
@@ -83,21 +83,27 @@ impl CCSDSStreamParser {
         self.buffer.extend_from_slice(bytes);
     }
 
-    pub fn next_packet(&mut self) -> Option<SpacePacket> {
+    pub fn next_packet(&mut self) -> Result<Option<SpacePacket>> {
         if self.buffer.len() < SpacePacket::HEADER_SIZE {
-            return None;
+            return Ok(None);
         }
 
         // Peek at header to get length
         let data_len = ((self.buffer[4] as u16) << 8) | (self.buffer[5] as u16);
-        let total_len = SpacePacket::HEADER_SIZE + (data_len + 1) as usize;
+        let total_len = SpacePacket::HEADER_SIZE + (data_len as usize) + 1;
 
         if self.buffer.len() < total_len {
-            return None;
+            return Ok(None);
         }
 
-        let packet_raw = self.buffer.drain(..total_len).collect::<Vec<u8>>();
-        SpacePacket::parse(&packet_raw).ok()
+        let packet_raw = &self.buffer[..total_len];
+        match SpacePacket::parse(packet_raw) {
+            Ok(packet) => {
+                self.buffer.drain(..total_len);
+                Ok(Some(packet))
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -121,5 +127,30 @@ mod tests {
         assert_eq!(packet.header.apid, 0x123);
         assert_eq!(packet.payload.len(), 5);
         assert_eq!(packet.payload[0], 0xDE);
+    }
+
+    #[test]
+    fn test_oversized_packet_overflow() {
+        // data_length = 0xFFFF implies 65536 payload bytes
+        let mut raw = vec![0x01, 0x23, 0xC0, 0x00, 0xFF, 0xFF];
+        // Provide only 10 bytes of payload instead of 65536
+        raw.extend_from_slice(&[0x00; 10]);
+        let res = SpacePacket::parse(&raw);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_stream_parser_awaits_full_oversized_packet() {
+        let mut parser = CCSDSStreamParser::new();
+        // data_length = 0xFFFF implies 65536 payload bytes
+        let mut raw = vec![0x01, 0x23, 0xC0, 0x00, 0xFF, 0xFF];
+        raw.extend_from_slice(&[0x00; 10]);
+        parser.push_bytes(&raw);
+        
+        let res = parser.next_packet();
+        assert!(res.is_ok());
+        assert!(res.unwrap().is_none());
+        // Buffer remains intact waiting for more bytes
+        assert_eq!(parser.buffer.len(), 16);
     }
 }

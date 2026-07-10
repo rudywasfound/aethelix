@@ -22,47 +22,57 @@ foundation of correct interpretation.
  
 ## 2. What the Output Values Are
  
-### 2.1 The Scoring Formula
+### 2.1 Single Hypothesis Scoring Formula
  
-The engine computes a raw score for each root-cause hypothesis `h` as:
+The engine computes a raw score for each independent root-cause hypothesis `r` as:
  
 ```
-raw_score(h) = path_strength(h) × consistency(h) × severity(h)
+score(r) = coverage(r) × (1 − β × inconsistency(r)) × severity_weighted(r) × depth_prior(r)
 ```
  
 where:
  
-- **`path_strength(h)`**: the product of edge weights along the strongest causal
-  path from `h` to the observed anomalies in the DAG. These weights are
-  hand-encoded engineering priors; they are not learned from data.
-- **`consistency(h)`**: a measure of how many of the anomalies active in the
-  current observation are reachable from `h` via the DAG, relative to how many
-  `h` would predict. A hypothesis that explains all active anomalies and
-  predicts no inactive ones scores 1.0.
-- **`severity(h)`**: a scalar derived from the magnitude of the observed
-  deviations on nodes that `h` influences. Larger deviations yield higher
-  severity.
-### 2.2 Normalization
+- **`coverage(r)`**: The fraction of active anomalous observables reachable from `r` in the DAG.
+- **`inconsistency(r)`**: The fraction of inactive (quiet) observables that `r` predicts should be anomalous.
+- **`β`**: The consistency softening penalty weight (set to `0.5` in the v2 engine to avoid over-penalising secondary hypotheses).
+- **`severity_weighted(r)`**: Weighted sum of observed anomaly severities that are causally explained by `r`.
+- **`depth_prior(r)`**: Structural prior based on topological depth from root causes in the DAG. Rewarding true root cause nodes (`depth 0`: `1.0`, `depth 1`: `0.7`, `depth 2`: `0.5`, `depth 3+`: `0.35`) and penalising intermediate nodes to resolve cascading ambiguity.
  
-After all hypotheses are scored, the raw scores are normalized:
+### 2.2 Joint Two-Hypothesis Scoring Formula
  
+To handle multi-fault scenarios, the engine also evaluates candidate pairs of root causes `(r1, r2)` and scores their combined explanatory power:
+ 
+```
+joint_score(r1, r2) = union_coverage(r1, r2) × (1 − β × joint_inconsistency) × severity_factor × mean_prior
+```
+ 
+where:
+- **`union_coverage(r1, r2)`**: Fraction of active anomalies explained by either `r1` or `r2`.
+- **`joint_inconsistency`**: Softened penalty for quiet channels predicted anomalous by *either* cause.
+- **`severity_factor`**: Fraction of total anomaly severity explained by the pair.
+- **`mean_prior`**: The average of the individual depth priors of `r1` and `r2` `(depth_prior(r1) + depth_prior(r2)) / 2.0`.
+ 
+### 2.3 Normalization
+ 
+Single hypotheses probabilities are normalized to sum to 1.0:
 ```
 P(h | evidence) = raw_score(h) / Σ raw_score(h_i)
 ```
  
-This forces the output values to sum to 1.0.
+Joint hypotheses probabilities are normalized among candidate pairs:
+```
+P(r1, r2 | evidence) = joint_score(r1, r2) / Σ joint_score(a, b)
+```
  
-### 2.3 Confidence
+A joint hypothesis `r1 + r2` is exposed in the unified ranked list if its joint probability is at least 5% higher than the top single candidate's probability.
+ 
+### 2.4 Confidence
  
 The `Confidence` value reported alongside each hypothesis is:
- 
 ```
-confidence(h) = evidence_quality(h) × consistency(h)
+confidence(h) = 0.4 × posterior_factor + 0.2 × consistency_factor + 0.2 × saturation_factor + 0.2 × margin_factor
 ```
- 
-It is a separate scalar, not derived from the normalized probability. It
-reflects how strongly the available evidence speaks to `h`, independent of
-the relative ranking.
+For joint hypotheses, the confidence is the maximum of individual confidences multiplied by a joint probability bonus `(1.0 + 0.1 × joint_prob)`. It reflects how strongly the evidence supports the hypothesis independent of other candidates.
  
 ---
  
@@ -94,32 +104,11 @@ hypothesis, accounting for roughly 46% of the total evidence weight."
  
 ### 3.2 Not Marginal Probabilities Over Independent Faults
  
-In a multi-fault scenario where faults A and B are both active simultaneously,
-the output values do **not** represent `P(A is active)` and `P(B is active)`
-as independent marginals. Because scores are normalized to sum to 1.0, the
-values are *compositional*: increasing the score of one hypothesis mechanically
-decreases the others, even if those hypotheses are not causally related.
+Although Aethelix now explicitly scores pairs of faults via joint scoring, the output values do **not** represent independent marginal probabilities like `P(A is active)` and `P(B is active)`. The probability values are rescaled heuristic scores, meaning that increasing one candidate's score mechanically decreases the others in the normalised list.
  
-The normalization creates an implicit mutual-exclusivity assumption — the
-output behaves as if at most one hypothesis is true. This is a useful fiction
-for ranking dominant causes. It is an incorrect model for estimating which
-combination of faults is active.
+### 3.3 Not a Solution to the General Multi-Fault (K >= 3) Diagnosis Problem
  
-### 3.3 Not a Solution to the Full Multi-Fault Diagnosis Problem
- 
-The full multi-fault diagnosis problem asks:
- 
-> Which subset S ⊆ {h₁, h₂, ..., hₙ} of hypotheses is simultaneously active,
-> and is consistent with the observed evidence?
- 
-Aethelix does not solve this problem. It does not enumerate joint hypothesis
-combinations, does not score subsets, and does not search for a maximally
-consistent fault set. What it does is identify **the single most explanatory
-hypothesis** and rank the others relative to it.
- 
-This is a valid and practically useful objective — identifying the dominant
-root cause quickly is valuable for operators under time pressure. But it
-should not be confused with a complete multi-fault identification.
+Aethelix now implements a targeted **joint two-hypothesis scoring pass** to diagnose double-fault scenarios. It evaluates pairs of root causes and ranks their combined explanatory power. While this successfully solves the two-fault co-occurrence problem (raising two-fault accuracy significantly), it does not search for higher-order subsets (3+ simultaneous faults) or solve the general multi-fault partition search.
  
 ---
  
@@ -132,7 +121,7 @@ should not be confused with a complete multi-fault identification.
 | Eliminating clearly unsupported hypotheses | Yes | Low-scoring hypotheses are weak candidates |
 | Detecting that *something* is anomalous | Yes | Severity scores are directly useful |
 | Estimating the probability that a specific fault is active | No | Values are not calibrated |
-| Concluding that two faults are both present simultaneously | No | Normalization masks multi-fault structure |
+| Concluding that two faults are both present simultaneously | Yes | Supported via joint two-hypothesis scoring when joint probability significantly exceeds single probability |
 | Computing a probability threshold for automatic action | No | Requires calibration first |
 | Formal certification or safety-critical automated decisions | No | Requires a full probabilistic model |
  
@@ -171,20 +160,19 @@ scored higher in the ranking.
  
 ## 6. The Diagnostic Objective Being Solved
  
-To be fully explicit, the current Aethelix engine implements:
+To be fully explicit, the Aethelix engine implements a dual-pass objective:
  
-> **Hypothesis H₁:** Find the hypothesis h* that maximizes
-> `path_strength(h) × consistency(h) × severity(h)`, and return all
-> hypotheses ranked by this score, normalized to a unit-sum distribution.
+1. **Single Hypothesis Pass:** Find the candidate `r` that maximizes:
+   `score(r) = coverage(r) × (1 − β × inconsistency(r)) × severity_weighted(r) × depth_prior(r)`
+2. **Joint Hypothesis Pass:** Evaluate all combinations of top candidates `(r1, r2)` and rank them using:
+   `joint_score(r1, r2) = union_coverage(r1, r2) × (1 − β × joint_inconsistency) × severity_factor × mean_prior`
  
 This objective is appropriate when:
-- The operator wants to know *where to look first*,
-- One fault is significantly more explanatory than the others,
-- The DAG structure correctly encodes the causal mechanism.
+- The operator wants to identify the dominant single fault or pair of faults quickly.
+- The cascading failure path is well-represented in the Causal DAG.
 This objective is insufficient when:
-- Two or more faults are simultaneously active and similarly explanatory,
-- The goal is to certify that a specific fault is absent,
-- Downstream systems require calibrated probabilities for risk computation.
+- Three or more independent faults occur simultaneously.
+- Downstream systems require safety-certified, mathematically calibrated marginal probabilities.
 ---
  
 ## 7. What Would Be Needed for Stronger Guarantees

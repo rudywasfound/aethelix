@@ -54,8 +54,8 @@
 │                    INFERENCE ENGINE                            │
 │  1. Trace observables ← intermediates ← root causes            │
 │  2. Score by: path_strength × consistency × severity           │
-│  3. Normalize to probabilities (sum = 1.0)                     │
-│  4. Confidence = evidence_quality × consistency                │
+│  3. Normalize to heuristic scores (sum = 1.0)                  │
+│  4. Confidence = weighted sum of causal factors                │
 └────────────────────┬───────────────────────────────────────────┘
                      v
 ┌────────────────────────────────────────────────────────────────┐
@@ -95,7 +95,7 @@ For implementation details, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ## Real Data Analysis: GSAT-6A Mission Failure
 
-Aethelix has been tested on **real satellite telemetry data** from the GSAT-6A failure (March 2018). The framework automatically discovers root causes and generates comprehensive visualizations:
+Aethelix has been tested on **simulated satellite telemetry data** modeled after the GSAT-6A failure (March 2018). The framework automatically discovers root causes and generates comprehensive visualizations:
 
 ### Generated Analysis Graphs
 
@@ -111,8 +111,25 @@ Aethelix has been tested on **real satellite telemetry data** from the GSAT-6A f
 **4. Deviation Analysis** - Quantified deviations at each timepoint
 ![Deviation Analysis](docs/gsat6a_deviation_analysis.png)
 
-**5. Benchmarks** - Benchmark Results against LSTM and Threshold (OOL) *Note*: Its buggy and is being worked on.
+**5. Benchmarks** - Performance against Correlation and Threshold baselines on the 100-scenario stochastic suite.
 ![Benchmark](docs/benchmark_results.png)
+
+#### Stochastic 100-Scenario Benchmark Results
+The pipeline evaluates the Aethelix Causal Inference Engine against naive thresholding and correlation-based pattern matching over 100 stochastically generated multi-fault & sensor degradation scenarios (seed `42`). Aethelix shows strong controlled-benchmark improvement, especially in Top-1 accuracy and robustness scenarios, while broader validation is still needed.
+
+| Metric / Scenario Category | Causal (Aethelix) | Correlation Baseline | Naive Threshold |
+|:---|:---:|:---:|:---:|
+| **Top-1 Accuracy** (Higher is better) | **89.0%** | 79.0% | 83.0% |
+| **Top-3 Accuracy** (Higher is better) | 94.0% | **97.0%** | **99.0%** |
+| **Mean Rank** (Lower is better) | 1.31 | 1.36 | **1.23** |
+| **Single-fault** (n=40) | **100.0%** | **100.0%** | **100.0%** |
+| **Two-fault (dominant cause)** (n=25) | **56.0%** | 48.0% | **56.0%** |
+| **Triple-fault + Noise (dominant cause)** (n=15) | **100.0%** | 80.0% | 80.0% |
+| **Sensor-dropout** (n=10) | **100.0%** | 60.0% | 70.0% |
+| **Cascading-ambiguity** (n=10) | **100.0%** | 90.0% | **100.0%** |
+
+Detailed text results are saved in [benchmark_results.txt](docs/benchmark_results.txt).
+
 
 
 ### Key Results
@@ -169,7 +186,7 @@ pip install -e .
 
 ### 2. Space Segment (Flight Software)
 
-Aethelix targets two dominant architectures as part of the "Strategic Autonomy" Dual-Core strategy: the legacy **LEON3 (SPARC)** fleet, and the next-generation **Shakti (RISC-V)** missions.
+Aethelix can be evaluated on flight software architectures such as the legacy **LEON3 (SPARC)** fleet, and the next-generation **Shakti (RISC-V)** missions.
 
 **C/C++ Integration (CMake)**
 Drop Aethelix into your embedded flight codebase simply using CMake's `FetchContent` or `add_subdirectory`. Select your compiler target:
@@ -188,7 +205,7 @@ Aerospace middlewares relying on Ada can include `aethelix.gpr` directly in thei
 
 ## Active Recovery (Sentinel Gap)
 
-Aethelix is not just a passive diagnostic tool; it possesses an **Active Recovery Callback Interface**. Through the C/Ada FFI, your FDIR middleware can register a recovery function that Aethelix will trigger *the exact moment* a root cause is successfully isolated.
+Aethelix is not just a passive diagnostic tool; it features an **experimental Active Recovery Callback Interface**. Through the C/Ada FFI, your FDIR middleware can register a recovery function that Aethelix will trigger *the exact moment* a root cause is successfully isolated.
 
 ```c
 // Example: Active Recovery execution on Deep Space Node
@@ -204,7 +221,55 @@ register_recovery_handler(critical_recovery);
 
 ---
 
+## Bring Your Own Satellite (Pluggable YAML DAGs)
+
+Aethelix is a satellite-agnostic framework. You can define your own spacecraft's subsystem components, nodes, and causal failure edges in standard YAML/JSON config files without changing any Python source code.
+
+See the JSON Schema in `schemas/dag_schema.json` and a minimal example in `configs/minimal_example.yaml`. You can also refer to [docs/yaml_dag_schema.md](docs/yaml_dag_schema.md) for the full configuration schema and specification.
+
+### 1. Define your DAG (e.g. `my_satellite.yaml`)
+```yaml
+aethelix_dag_version: "1.0"
+satellite:
+  name: "My Custom Cubesat"
+nodes:
+  - id: payload_sensor_anomaly
+    type: root_cause
+    description: "Payload sensor lens degradation"
+  - id: image_quality
+    type: intermediate
+    description: "Downlink image resolution"
+  - id: payload_temp_measured
+    type: observable
+    description: "Measured payload thermistor reading"
+edges:
+  - source: payload_sensor_anomaly
+    target: image_quality
+    weight: 0.85
+    mechanism: "Degraded lens reduces downlink image sharpness"
+```
+
+### 2. Validate your configuration via CLI
+```bash
+python scripts/aethelix_cli.py validate configs/minimal_example.yaml
+```
+
+### 3. Load and use in Python
+```python
+from causal_graph import CausalGraph, RootCauseRanker
+
+# Load from file
+graph = CausalGraph(dag_path="configs/sentinel1b.yaml")
+
+# Run analysis
+ranker = RootCauseRanker(graph)
+hypotheses = ranker.analyze(nominal, degraded)
+```
+
+---
+
 ### Quick Run
+
 ```bash
 python dashboard/app.py
 ```
@@ -391,7 +456,7 @@ See `requirements.txt` for the full dependency list.
 - Aethelix uses the **NASA Telemanom** framework as a primary benchmark for evaluating diagnostic accuracy on spacecraft telemetry. 
 
   - **Datasets:** We evaluate using the SMAP (Soil Moisture Active Passive) and MSL (Mars Science Laboratory) datasets provided by NASA.
-  - **Baseline:** Performance is compared against the LSTM-based anomaly detection methods established in the following paper:
+  - **Baseline:** Performance is compared against correlation and threshold baselines, inspired by the anomaly detection evaluation methodology established in the following paper:
 
 > Hundman, K., Constantinou, V., Laporte, C., Colwell, I., & Soderstrom, T. (2018). *Detecting Spacecraft Anomalies Using LSTMs and Nonparametric Dynamic Thresholding*. Proceedings of the 24th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining. https://arxiv.org/abs/1802.04431
 

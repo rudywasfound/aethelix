@@ -1,0 +1,461 @@
+aethelix_dag_version: '1.0'
+satellite:
+  name: GSAT-6A
+  agency: ISRO
+  orbit: GEO
+  mission: Communications (S-band)
+  failure_date: '2018-03-26'
+  description: Multi-subsystem causal fault graph for GSAT-6A. Covers EPS, TCS, ADCS,
+    COMMS, OBC, and Propulsion.
+nodes:
+- id: solar_degradation
+  type: root_cause
+  description: Solar panel efficiency loss or shadowing
+  degradation_modes:
+  - panel_aging
+  - dust_accumulation
+  - partial_shadowing
+- id: battery_aging
+  type: root_cause
+  description: Battery cell degradation and capacity loss
+  degradation_modes:
+  - cell_aging
+  - internal_resistance_rise
+- id: battery_thermal
+  type: root_cause
+  description: Excessive battery temperature stress
+  degradation_modes:
+  - thermal_runaway_risk
+  - efficiency_loss
+- id: sensor_bias
+  type: root_cause
+  description: Measurement bias or sensor drift
+  degradation_modes:
+  - calibration_drift
+  - electronic_aging
+- id: panel_insulation_degradation
+  type: root_cause
+  description: Solar panel insulation or radiator fouling
+  degradation_modes:
+  - insulation_loss
+  - radiator_fouling
+- id: battery_heatsink_failure
+  type: root_cause
+  description: Battery thermal management system failure
+  degradation_modes:
+  - heatsink_blockage
+  - coolant_loss
+- id: payload_radiator_degradation
+  type: root_cause
+  description: Payload electronics radiator degradation
+  degradation_modes:
+  - radiator_coating_loss
+  - micrometeorite_damage
+- id: pcdu_regulator_failure
+  type: root_cause
+  description: Regulated Power Bus or PCDU Regulator failure
+  degradation_modes:
+  - regulator_short
+  - pcdu_controller_fault
+- id: solar_input
+  type: intermediate
+  description: Available solar power from panels
+- id: battery_efficiency
+  type: intermediate
+  description: Battery charge/discharge efficiency
+- id: battery_state
+  type: intermediate
+  description: Battery charge capacity and health
+- id: bus_regulation
+  type: intermediate
+  description: Bus voltage regulation quality
+- id: solar_panel_temp
+  type: intermediate
+  description: Solar panel temperature
+- id: battery_temp
+  type: intermediate
+  description: Battery cell temperature
+- id: payload_temp
+  type: intermediate
+  description: Payload electronics temperature
+- id: thermal_stress
+  type: intermediate
+  description: Overall system thermal stress level
+- id: solar_input_measured
+  type: observable
+  description: Measured solar input power
+- id: battery_voltage_measured
+  type: observable
+  description: Measured battery voltage
+- id: battery_charge_measured
+  type: observable
+  description: Measured battery charge state percentage
+- id: bus_voltage_measured
+  type: observable
+  description: Measured bus output voltage
+- id: solar_panel_temp_measured
+  type: observable
+  description: Measured solar panel temperature
+- id: battery_temp_measured
+  type: observable
+  description: Measured battery temperature
+- id: payload_temp_measured
+  type: observable
+  description: Measured payload temperature
+- id: bus_current_measured
+  type: observable
+  description: Measured bus current (power dissipation proxy)
+- id: wheel_friction
+  type: root_cause
+  description: Increased friction in reaction wheel bearings
+  degradation_modes:
+  - bearing_wear
+  - lubricant_degradation
+- id: gyro_drift
+  type: root_cause
+  description: Uncompensated drift in gyroscope bias
+  degradation_modes:
+  - thermal_drift
+  - calibration_loss
+- id: magnetorquer_anomaly
+  type: root_cause
+  description: Electronic fault in BCT or magnetorquer coils
+  degradation_modes:
+  - coil_short
+  - driver_fault
+- id: pointing_accuracy
+  type: intermediate
+  description: Satellite attitude pointing precision
+- id: control_effort
+  type: intermediate
+  description: Magnetic/Momentum control effort level
+- id: pointing_error_measured
+  type: observable
+  description: Measured pointing deviation (arcsec)
+- id: wheel_speed_measured
+  type: observable
+  description: Measured reaction wheel rotational speed (RPM)
+- id: wheel_current_measured
+  type: observable
+  description: Measured reaction wheel motor current (A)
+- id: gyro_bias_observed
+  type: observable
+  description: Estimated gyroscope bias from Kalman Filter
+- id: transponder_fault
+  type: root_cause
+  description: HPA or SSPA efficiency loss / degradation
+  degradation_modes:
+  - semiconductor_aging
+  - thermal_stress
+- id: antenna_pointing_error
+  type: root_cause
+  description: Mechanical antenna pointing or feed misalignment
+  degradation_modes:
+  - gimble_stuck
+  - thermal_distortion
+- id: ber_spike
+  type: root_cause
+  description: Transient radio frequency interference or BER spike
+  degradation_modes:
+  - emi_external
+  - solar_flare_interference
+- id: link_quality
+  type: intermediate
+  description: Total RF link signal-to-noise ratio
+- id: downlink_power_measured
+  type: observable
+  description: Measured downlink signal strength (dBm)
+- id: ber_measured
+  type: observable
+  description: Measured Bit Error Rate
+- id: transponder_temp_measured
+  type: observable
+  description: Measured transponder hardware temperature (C)
+- id: memory_corruption
+  type: root_cause
+  description: Single Event Upset or memory block corruption
+  degradation_modes:
+  - seu
+  - multi_bit_fault
+- id: watchdog_reset_fault
+  type: root_cause
+  description: Unexplained watchdog timeout or system reset
+  degradation_modes:
+  - loop_deadlock
+  - resource_starvation
+- id: software_exception
+  type: root_cause
+  description: Recurring software exceptions or task crashes
+  degradation_modes:
+  - buffer_overflow
+  - logic_error
+- id: processor_state
+  type: intermediate
+  description: Integrity of CPU execution and context
+- id: cpu_load_measured
+  type: observable
+  description: Measured CPU usage percentage
+- id: memory_usage_measured
+  type: observable
+  description: Measured RAM usage percentage
+- id: reset_count_measured
+  type: observable
+  description: Cumulative OBC system reset count
+- id: thruster_valve_fault
+  type: root_cause
+  description: Propellant valve stuck (open or closed)
+  degradation_modes:
+  - mechanical_jam
+  - electric_coil_fault
+- id: fuel_pressure_anomaly
+  type: root_cause
+  description: Anomaly in propellant tank or regulator pressure
+  degradation_modes:
+  - seal_leak
+  - regulator_slip
+- id: thrust_performance
+  type: intermediate
+  description: Effective impulse vs commanded impulse
+- id: tank_pressure_measured
+  type: observable
+  description: Measured propellant tank pressure (PSI)
+- id: thruster_temp_measured
+  type: observable
+  description: Measured thruster nozzle temperature (C)
+edges:
+- source: solar_degradation
+  target: solar_input
+  weight: 0.95
+  mechanism: Reduced panel output due to physical degradation or shadowing
+- source: battery_aging
+  target: battery_efficiency
+  weight: 0.9
+  mechanism: Increased internal resistance reduces charge/discharge efficiency
+- source: battery_thermal
+  target: battery_efficiency
+  weight: 0.65
+  mechanism: High temperature degrades battery electrochemistry and increases losses
+- source: battery_thermal
+  target: battery_temp
+  weight: 0.75
+  mechanism: Internal battery thermal stress manifests as temperature rise
+- source: solar_input
+  target: battery_state
+  weight: 0.9
+  mechanism: Reduced input power cannot recharge battery to nominal capacity
+- source: battery_efficiency
+  target: battery_state
+  weight: 0.85
+  mechanism: Lower efficiency means less power actually stored per unit of solar input
+- source: battery_state
+  target: bus_regulation
+  weight: 0.8
+  mechanism: Degraded battery supply makes regulation harder and less stable
+- source: solar_input
+  target: solar_input_measured
+  weight: 1.0
+  mechanism: Direct measurement of solar power via sensor
+- source: battery_state
+  target: battery_voltage_measured
+  weight: 0.95
+  mechanism: Battery voltage reflects state of charge via electrochemical potential
+- source: battery_efficiency
+  target: battery_voltage_measured
+  weight: 0.7
+  mechanism: Efficiency degradation causes voltage droop due to increased internal
+    resistance
+- source: battery_state
+  target: battery_charge_measured
+  weight: 0.9
+  mechanism: Charge sensor reports actual state of charge of battery
+- source: bus_regulation
+  target: bus_voltage_measured
+  weight: 0.95
+  mechanism: Bus voltage sensor directly measures regulator output
+- source: battery_state
+  target: bus_voltage_measured
+  weight: 0.75
+  mechanism: Battery state affects available power for regulation
+- source: pcdu_regulator_failure
+  target: bus_regulation
+  weight: 0.98
+  mechanism: PCDU regulator failure directly collapses regulated voltage levels
+- source: pcdu_regulator_failure
+  target: bus_current_measured
+  weight: 0.8
+  mechanism: Failed regulator cannot sustain load current, dropping observed draw
+    to zero
+- source: sensor_bias
+  target: battery_voltage_measured
+  weight: 0.5
+  mechanism: Sensor drift and calibration error add bias to voltage readings
+- source: sensor_bias
+  target: battery_charge_measured
+  weight: 0.5
+  mechanism: Sensor drift affects charge state estimation algorithms
+- source: solar_input
+  target: solar_panel_temp
+  weight: 0.85
+  mechanism: Increased solar radiation heats panel (albedo and thermal effects)
+- source: bus_regulation
+  target: payload_temp
+  weight: 0.7
+  mechanism: Available regulated power enables payload operation, generating heat
+- source: panel_insulation_degradation
+  target: solar_panel_temp
+  weight: 0.9
+  mechanism: Poor insulation/radiator coating prevents radiative cooling to space
+- source: battery_heatsink_failure
+  target: battery_temp
+  weight: 0.95
+  mechanism: Failed heatsink eliminates primary cooling path for battery heat dissipation
+- source: payload_radiator_degradation
+  target: payload_temp
+  weight: 0.9
+  mechanism: Degraded radiator reduces heat dissipation to space
+- source: battery_temp
+  target: thermal_stress
+  weight: 0.7
+  mechanism: High battery temperature is critical thermal stress indicator (risk of
+    runaway)
+- source: payload_temp
+  target: thermal_stress
+  weight: 0.6
+  mechanism: High payload temperature increases mission risk (reduced margins)
+- source: solar_panel_temp
+  target: thermal_stress
+  weight: 0.5
+  mechanism: High panel temperature indicates reduced thermal margin
+- source: battery_temp
+  target: battery_efficiency
+  weight: 0.7
+  mechanism: Elevated temperature increases internal resistance and electrochemical
+    losses
+- source: solar_panel_temp
+  target: solar_panel_temp_measured
+  weight: 0.98
+  mechanism: Direct temperature sensor measurement via thermistor
+- source: battery_temp
+  target: battery_temp_measured
+  weight: 0.95
+  mechanism: Battery thermistor directly measures cell temperature
+- source: payload_temp
+  target: payload_temp_measured
+  weight: 0.96
+  mechanism: Payload thermal sensor provides local temperature measurement
+- source: battery_state
+  target: bus_current_measured
+  weight: 0.8
+  mechanism: Low battery state increases regulation effort and current draw
+- source: battery_efficiency
+  target: bus_current_measured
+  weight: 0.7
+  mechanism: Reduced efficiency requires higher current to deliver same power
+- source: wheel_friction
+  target: wheel_current_measured
+  weight: 0.9
+  mechanism: Motor must work harder to overcome bearing friction
+- source: wheel_friction
+  target: pointing_accuracy
+  weight: 0.6
+  mechanism: Induced jitter from bearing vibration
+- source: gyro_drift
+  target: gyro_bias_observed
+  weight: 0.95
+  mechanism: Direct estimation of bias by flight software
+- source: gyro_drift
+  target: pointing_accuracy
+  weight: 0.8
+  mechanism: Controller corrects for fake bias, inducing real pointing error
+- source: magnetorquer_anomaly
+  target: control_effort
+  weight: 0.8
+  mechanism: Loss of magnetic desaturation capability
+- source: control_effort
+  target: wheel_speed_measured
+  weight: 0.9
+  mechanism: Saturated momentum must be stored in wheels
+- source: pointing_accuracy
+  target: pointing_error_measured
+  weight: 1.0
+  mechanism: Telemetry reports actual deviation
+- source: transponder_fault
+  target: link_quality
+  weight: 0.85
+  mechanism: Reduced HPA gain lowers total SNR
+- source: transponder_fault
+  target: transponder_temp_measured
+  weight: 0.7
+  mechanism: Inefficient HPA generates more waste heat
+- source: antenna_pointing_error
+  target: link_quality
+  weight: 0.95
+  mechanism: Misalignment causes severe boresight signal loss
+- source: ber_spike
+  target: ber_measured
+  weight: 0.98
+  mechanism: Direct observation of increased bit errors
+- source: link_quality
+  target: downlink_power_measured
+  weight: 0.9
+  mechanism: Link SNR directly reflects in measured power
+- source: link_quality
+  target: ber_measured
+  weight: 0.8
+  mechanism: Weak signal increases probability of bit errors
+- source: memory_corruption
+  target: processor_state
+  weight: 0.8
+  mechanism: Corrupt instructions or heap corrupts execution
+- source: memory_corruption
+  target: memory_usage_measured
+  weight: 0.7
+  mechanism: Detection of leaked or locked memory blocks
+- source: software_exception
+  target: processor_state
+  weight: 0.9
+  mechanism: Crashed tasks disrupt mission software
+- source: software_exception
+  target: cpu_load_measured
+  weight: 0.6
+  mechanism: Error handlers and loggers consume cycles
+- source: watchdog_reset_fault
+  target: reset_count_measured
+  weight: 1.0
+  mechanism: System logs every discrete reset event
+- source: processor_state
+  target: cpu_load_measured
+  weight: 0.8
+  mechanism: Degraded software state often results in load spikes
+- source: processor_state
+  target: reset_count_measured
+  weight: 0.5
+  mechanism: Corruption eventually triggers a reboot
+- source: thruster_valve_fault
+  target: thrust_performance
+  weight: 0.95
+  mechanism: Stuck valve prevents or forces propellant flow
+- source: thruster_valve_fault
+  target: thruster_temp_measured
+  weight: 0.8
+  mechanism: Valve state affects heat produced by combustion
+- source: fuel_pressure_anomaly
+  target: tank_pressure_measured
+  weight: 0.98
+  mechanism: Leaking propellant directly reduces tank pressure
+- source: fuel_pressure_anomaly
+  target: thrust_performance
+  weight: 0.7
+  mechanism: Variable pressure causes unstable thruster impulse
+- source: bus_regulation
+  target: processor_state
+  weight: 0.4
+  mechanism: Undervoltage causes CMOS latch-up or logic errors
+- source: processor_state
+  target: pointing_accuracy
+  weight: 0.5
+  mechanism: CPU overload increases control loop latency
+- source: thrust_performance
+  target: payload_temp
+  weight: 0.3
+  mechanism: Plume impingement or conduction from engines heats payload

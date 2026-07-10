@@ -1,0 +1,41 @@
+aethelix_dag_version: "1.0"
+
+satellite:
+  name: Generic CubeSat
+  agency: University / New-Space
+  orbit: LEO
+  mission: Technology demonstration
+  description: >
+    Minimal hello-world DAG for Aethelix.  Three nodes, two edges.
+    Copy this file to get started with your own satellite config.
+
+# ---------------------------------------------------------------------------
+# Three nodes: one fault, one effect, one measurement.
+# ---------------------------------------------------------------------------
+nodes:
+  - id: solar_panel_fault
+    type: root_cause
+    description: Solar panel degradation or partial shadowing
+    degradation_modes: [panel_aging, orbital_debris_strike]
+
+  - id: bus_power
+    type: intermediate
+    description: Available power on the regulated bus
+
+  - id: bus_voltage_measured
+    type: observable
+    description: Measured bus voltage (housekeeping telemetry)
+
+# ---------------------------------------------------------------------------
+# Two edges: fault reduces bus power, bus power reflects in voltage sensor.
+# ---------------------------------------------------------------------------
+edges:
+  - source: solar_panel_fault
+    target: bus_power
+    weight: 0.9
+    mechanism: Panel degradation cuts generated current, starving the bus
+
+  - source: bus_power
+    target: bus_voltage_measured
+    weight: 0.95
+    mechanism: Bus voltage sensor directly measures regulated output

@@ -138,12 +138,16 @@ impl PyCCSDSParser {
         self.inner.push_bytes(&bytes);
     }
 
-    fn next_packet(&mut self) -> Option<PySpacePacket> {
-        self.inner.next_packet().map(|p| PySpacePacket {
-            apid: p.header.apid,
-            sequence_count: p.header.sequence_count,
-            payload: p.payload,
-        })
+    fn next_packet(&mut self) -> PyResult<Option<PySpacePacket>> {
+        match self.inner.next_packet() {
+            Ok(Some(p)) => Ok(Some(PySpacePacket {
+                apid: p.header.apid,
+                sequence_count: p.header.sequence_count,
+                payload: p.payload,
+            })),
+            Ok(None) => Ok(None),
+            Err(e) => Err(pyo3::exceptions::PyValueError::new_err(e.to_string())),
+        }
     }
 }
 

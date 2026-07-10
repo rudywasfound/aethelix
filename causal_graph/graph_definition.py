@@ -27,16 +27,23 @@ This encoding enables Bayesian causal inference to rank hypotheses about
 which root causes best explain observed deviations in telemetry.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Any, Optional, Tuple
+from pathlib import Path
+from typing import Dict, List, Set, Any, Optional, Tuple, Union
 from enum import Enum
 
 try:
-    from aethelix_core import PyCausalGraph
+    from aethelix.rust_core import PyCausalGraph  # type: ignore[import-not-found]
     RUST_CORE_AVAILABLE = True
 except ImportError:
-    RUST_CORE_AVAILABLE = False
-    PyCausalGraph = None
+    try:
+        from aethelix_core import PyCausalGraph  # type: ignore[import-not-found]
+        RUST_CORE_AVAILABLE = True
+    except ImportError:
+        RUST_CORE_AVAILABLE = False
+        PyCausalGraph = None
 
 
 class NodeType(Enum):
@@ -98,27 +105,62 @@ class CausalGraph:
     """
     DAG representing causal relationships in power and thermal subsystems.
     Encodes engineering knowledge for Bayesian root cause inference.
+
+    Parameters
+    ----------
+    dag_path : str | Path | None
+        Optional path to a YAML or JSON satellite config file.  When
+        supplied the graph is built entirely from that file and **none**
+        of the hardcoded subsystem builders are called.  When ``None``
+        (the default) the built-in GSAT-6A multi-subsystem graph is
+        constructed as before, preserving full backward-compatibility.
+
+    Examples
+    --------
+    # Built-in GSAT-6A graph (existing behaviour, unchanged)
+    graph = CausalGraph()
+
+    # Custom satellite from YAML (pluggable framework mode)
+    graph = CausalGraph(dag_path="configs/my_satellite.yaml")
     """
 
-    def __init__(self):
-        """Initialize graph and subsystems."""
-        
+    def __init__(self, dag_path: Optional[Union[str, Path]] = None):
+        """Initialize graph — either from a YAML/JSON config or the built-in subsystem builders."""
+
         self.nodes: Dict[str, Node] = {}  # name -> Node object
         self.edges: List[Edge] = []        # List of causal edges
-        
+        self.dag_meta: Dict[str, Any] = {} # populated when loading from file
+
         # High-performance Rust backend for complex graph operations
         if RUST_CORE_AVAILABLE:
             self.rust_graph = PyCausalGraph()
         else:
             self.rust_graph = None
-        
-        # Build the complete graph structure
-        self._build_power_subsystem_graph()
-        self._build_adcs_subsystem_graph()
-        self._build_comms_subsystem_graph()
-        self._build_obc_subsystem_graph()
-        self._build_propulsion_subsystem_graph()
-        self._build_cross_subsystem_coupling()
+
+        if dag_path is not None:
+            # ----------------------------------------------------------------
+            # Pluggable-DAG path: delegate entirely to dag_loader.
+            # This populates self.nodes / self.edges / self.dag_meta from the
+            # YAML/JSON file and skips all hardcoded subsystem builders.
+            # ----------------------------------------------------------------
+            from causal_graph.dag_loader import load_dag  # deferred to avoid circular import
+            _loaded = load_dag(dag_path)
+            self.nodes    = _loaded.nodes
+            self.edges    = _loaded.edges
+            self.dag_meta = _loaded.dag_meta
+            if _loaded.rust_graph is not None:
+                self.rust_graph = _loaded.rust_graph
+        else:
+            # ----------------------------------------------------------------
+            # Legacy path: build the complete hardcoded GSAT-6A graph.
+            # All existing call sites continue to work with zero changes.
+            # ----------------------------------------------------------------
+            self._build_power_subsystem_graph()
+            self._build_adcs_subsystem_graph()
+            self._build_comms_subsystem_graph()
+            self._build_obc_subsystem_graph()
+            self._build_propulsion_subsystem_graph()
+            self._build_cross_subsystem_coupling()
 
     def _build_power_subsystem_graph(self):
         """Build power/thermal graph layers: faults, effects, and telemetry."""

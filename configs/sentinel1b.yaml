@@ -1,0 +1,310 @@
+aethelix_dag_version: "1.0"
+
+satellite:
+  name: Sentinel-1B
+  agency: ESA
+  orbit: LEO (693 km, sun-synchronous)
+  mission: C-band Synthetic Aperture Radar (SAR) Earth observation
+  failure_date: "2021-12-23"
+  description: >
+    Models the December 2021 Sentinel-1B anomaly in which the C-SAR Antenna
+    Power Supply (CAPS) 28V regulated bus failed catastrophically, terminating
+    the mission.  This config demonstrates Aethelix's pluggable DAG: the
+    mission-specific caps_regulator_failure root cause is expressed in plain
+    YAML without touching Python.
+
+# ---------------------------------------------------------------------------
+# ROOT CAUSES
+# ---------------------------------------------------------------------------
+# Standard EPS/TCS root causes shared with the generic satellite model plus
+# the Sentinel-1B-specific CAPS regulator failure.
+# ---------------------------------------------------------------------------
+
+nodes:
+  # ── EPS root causes ──────────────────────────────────────────────────────
+  - id: solar_degradation
+    type: root_cause
+    description: Solar panel efficiency loss or shadowing
+    degradation_modes: [panel_aging, dust_accumulation, partial_shadowing]
+
+  - id: battery_aging
+    type: root_cause
+    description: Battery cell degradation and capacity loss
+    degradation_modes: [cell_aging, internal_resistance_rise]
+
+  - id: battery_thermal
+    type: root_cause
+    description: Excessive battery temperature stress
+    degradation_modes: [thermal_runaway_risk, efficiency_loss]
+
+  - id: sensor_bias
+    type: root_cause
+    description: Measurement bias or sensor drift
+    degradation_modes: [calibration_drift, electronic_aging]
+
+  # ── Thermal root causes ───────────────────────────────────────────────────
+  - id: panel_insulation_degradation
+    type: root_cause
+    description: Solar panel insulation or radiator fouling
+    degradation_modes: [insulation_loss, radiator_fouling]
+
+  - id: battery_heatsink_failure
+    type: root_cause
+    description: Battery thermal management system failure
+    degradation_modes: [heatsink_blockage, coolant_loss]
+
+  - id: payload_radiator_degradation
+    type: root_cause
+    description: Payload electronics radiator degradation
+    degradation_modes: [radiator_coating_loss, micrometeorite_damage]
+
+  # ── Sentinel-1B specific: CAPS regulator failure ─────────────────────────
+  - id: caps_regulator_failure
+    type: root_cause
+    description: >
+      C-SAR Antenna Power Supply (CAPS) regulated 28V bus failure.
+      Identified by ESA Anomaly Review Board as the most likely root cause
+      of the December 2021 Sentinel-1B mission loss.
+    degradation_modes: [regulator_short, caps_controller_fault, overvoltage_transient]
+
+  # ── EPS intermediates ─────────────────────────────────────────────────────
+  - id: solar_input
+    type: intermediate
+    description: Available solar power from panels
+
+  - id: battery_efficiency
+    type: intermediate
+    description: Battery charge/discharge efficiency
+
+  - id: battery_state
+    type: intermediate
+    description: Battery charge capacity and health
+
+  - id: bus_regulation
+    type: intermediate
+    description: Bus voltage regulation quality
+
+  # ── Thermal intermediates ─────────────────────────────────────────────────
+  - id: solar_panel_temp
+    type: intermediate
+    description: Solar panel temperature
+
+  - id: battery_temp
+    type: intermediate
+    description: Battery cell temperature
+
+  - id: payload_temp
+    type: intermediate
+    description: Payload electronics temperature (SAR instrument)
+
+  - id: thermal_stress
+    type: intermediate
+    description: Overall system thermal stress level
+
+  # ── EPS observables ───────────────────────────────────────────────────────
+  - id: solar_input_measured
+    type: observable
+    description: Measured solar input power
+
+  - id: battery_voltage_measured
+    type: observable
+    description: Measured battery voltage
+
+  - id: battery_charge_measured
+    type: observable
+    description: Measured battery charge state percentage
+
+  - id: bus_voltage_measured
+    type: observable
+    description: Measured bus output voltage
+
+  # ── Thermal observables ───────────────────────────────────────────────────
+  - id: solar_panel_temp_measured
+    type: observable
+    description: Measured solar panel temperature
+
+  - id: battery_temp_measured
+    type: observable
+    description: Measured battery temperature
+
+  - id: payload_temp_measured
+    type: observable
+    description: Measured SAR payload temperature
+
+  - id: bus_current_measured
+    type: observable
+    description: Measured bus current (power dissipation proxy)
+
+# ---------------------------------------------------------------------------
+# EDGES
+# ---------------------------------------------------------------------------
+
+edges:
+  # ── EPS causal chain ──────────────────────────────────────────────────────
+  - source: solar_degradation
+    target: solar_input
+    weight: 0.95
+    mechanism: Reduced panel output due to physical degradation or shadowing
+
+  - source: battery_aging
+    target: battery_efficiency
+    weight: 0.90
+    mechanism: Increased internal resistance reduces charge/discharge efficiency
+
+  - source: battery_thermal
+    target: battery_efficiency
+    weight: 0.65
+    mechanism: High temperature degrades battery electrochemistry and increases losses
+
+  - source: battery_thermal
+    target: battery_temp
+    weight: 0.75
+    mechanism: Internal battery thermal stress manifests as temperature rise
+
+  - source: solar_input
+    target: battery_state
+    weight: 0.90
+    mechanism: Reduced input power cannot recharge battery to nominal capacity
+
+  - source: battery_efficiency
+    target: battery_state
+    weight: 0.85
+    mechanism: Lower efficiency means less power actually stored per unit of solar input
+
+  - source: battery_state
+    target: bus_regulation
+    weight: 0.80
+    mechanism: Degraded battery supply makes regulation harder and less stable
+
+  - source: solar_input
+    target: solar_input_measured
+    weight: 1.0
+    mechanism: Direct measurement of solar power via sensor
+
+  - source: battery_state
+    target: battery_voltage_measured
+    weight: 0.95
+    mechanism: Battery voltage reflects state of charge via electrochemical potential
+
+  - source: battery_efficiency
+    target: battery_voltage_measured
+    weight: 0.70
+    mechanism: Efficiency degradation causes voltage droop due to increased internal resistance
+
+  - source: battery_state
+    target: battery_charge_measured
+    weight: 0.90
+    mechanism: Charge sensor reports actual state of charge of battery
+
+  - source: bus_regulation
+    target: bus_voltage_measured
+    weight: 0.95
+    mechanism: Bus voltage sensor directly measures regulator output
+
+  - source: battery_state
+    target: bus_voltage_measured
+    weight: 0.75
+    mechanism: Battery state affects available power for regulation
+
+  - source: sensor_bias
+    target: battery_voltage_measured
+    weight: 0.50
+    mechanism: Sensor drift and calibration error add bias to voltage readings
+
+  - source: sensor_bias
+    target: battery_charge_measured
+    weight: 0.50
+    mechanism: Sensor drift affects charge state estimation algorithms
+
+  # ── CAPS regulator → bus (Sentinel-1B specific) ───────────────────────────
+  - source: caps_regulator_failure
+    target: bus_regulation
+    weight: 0.98
+    mechanism: >
+      Catastrophic failure of the CAPS 28V regulated bus eliminates the
+      primary power supply path to the SAR instrument electronics.
+
+  - source: caps_regulator_failure
+    target: bus_voltage_measured
+    weight: 0.97
+    mechanism: >
+      Complete CAPS failure manifests as a sudden, irreversible drop
+      in measured bus voltage — the primary observable of the anomaly.
+
+  - source: caps_regulator_failure
+    target: payload_temp
+    weight: 0.80
+    mechanism: >
+      Loss of payload power cuts SAR electronics heat dissipation,
+      causing an anomalous temperature drop observed in housekeeping data.
+
+  # ── Thermal causal chain ──────────────────────────────────────────────────
+  - source: solar_input
+    target: solar_panel_temp
+    weight: 0.85
+    mechanism: Increased solar radiation heats panel (albedo and thermal effects)
+
+  - source: bus_regulation
+    target: payload_temp
+    weight: 0.70
+    mechanism: Available regulated power enables payload operation, generating heat
+
+  - source: panel_insulation_degradation
+    target: solar_panel_temp
+    weight: 0.90
+    mechanism: Poor insulation/radiator coating prevents radiative cooling to space
+
+  - source: battery_heatsink_failure
+    target: battery_temp
+    weight: 0.95
+    mechanism: Failed heatsink eliminates primary cooling path for battery heat dissipation
+
+  - source: payload_radiator_degradation
+    target: payload_temp
+    weight: 0.90
+    mechanism: Degraded radiator reduces heat dissipation to space
+
+  - source: battery_temp
+    target: thermal_stress
+    weight: 0.70
+    mechanism: High battery temperature is critical thermal stress indicator
+
+  - source: payload_temp
+    target: thermal_stress
+    weight: 0.60
+    mechanism: High payload temperature increases mission risk
+
+  - source: solar_panel_temp
+    target: thermal_stress
+    weight: 0.50
+    mechanism: High panel temperature indicates reduced thermal margin
+
+  - source: battery_temp
+    target: battery_efficiency
+    weight: 0.70
+    mechanism: Elevated temperature increases internal resistance and electrochemical losses
+
+  - source: solar_panel_temp
+    target: solar_panel_temp_measured
+    weight: 0.98
+    mechanism: Direct temperature sensor measurement via thermistor
+
+  - source: battery_temp
+    target: battery_temp_measured
+    weight: 0.95
+    mechanism: Battery thermistor directly measures cell temperature
+
+  - source: payload_temp
+    target: payload_temp_measured
+    weight: 0.96
+    mechanism: Payload thermal sensor provides local temperature measurement
+
+  - source: battery_state
+    target: bus_current_measured
+    weight: 0.80
+    mechanism: Low battery state increases regulation effort and current draw
+
+  - source: battery_efficiency
+    target: bus_current_measured
+    weight: 0.70
+    mechanism: Reduced efficiency requires higher current to deliver same power

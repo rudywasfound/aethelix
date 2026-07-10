@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "aethelix"
-version = "1.0.1"
+version = "2.0.0"
 description = "Aethelix: Physics-Based Causal Inference for Real-Time Satellite Fault Detection"
 readme = "README.md"
 authors = [
@@ -21,6 +21,8 @@ dependencies = [
     "plotly>=5.0.0",
     "PyYAML>=6.0",
 ]
+[project.scripts]
+aethelix = "scripts.aethelix_cli:main"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]

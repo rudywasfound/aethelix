@@ -1,0 +1,151 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/rudywasfound/aethelix/schemas/dag_schema.json",
+  "title": "Aethelix Causal DAG Schema",
+  "description": "Strict JSON Schema for validating Aethelix YAML/JSON satellite causal DAG configuration files. See docs/yaml_dag_schema.md for the full specification.",
+  "type": "object",
+  "required": [
+    "nodes",
+    "edges"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "aethelix_dag_version": {
+      "type": "string",
+      "description": "Schema version this file targets. Major-version mismatch raises DAGLoadError; minor-version mismatch emits a warning.",
+      "default": "1.0",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "examples": [
+        "1.0"
+      ]
+    },
+    "satellite": {
+      "type": "object",
+      "description": "Free-form metadata block describing the satellite. Not used by the inference engine — purely for documentation and provenance.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Satellite name, e.g. 'GSAT-6A'"
+        },
+        "agency": {
+          "type": "string",
+          "description": "Operating agency, e.g. 'ISRO'"
+        },
+        "orbit": {
+          "type": "string",
+          "description": "Orbit type, e.g. 'GEO', 'LEO', 'MEO'"
+        },
+        "mission": {
+          "type": "string",
+          "description": "Mission description"
+        },
+        "failure_date": {
+          "type": "string",
+          "description": "ISO-8601 date of the failure event"
+        },
+        "description": {
+          "type": "string",
+          "description": "Free-form prose description"
+        }
+      },
+      "additionalProperties": true
+    },
+    "nodes": {
+      "type": "array",
+      "description": "Ordered list of node objects. Each node is a vertex in the DAG representing a fault, an intermediate physical effect, or an observable telemetry reading.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this node. No spaces allowed; use underscores.",
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            "examples": [
+              "solar_degradation",
+              "battery_voltage_measured"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "description": "Functional role of the node in the causal model.",
+            "enum": [
+              "root_cause",
+              "intermediate",
+              "observable",
+              "fault",
+              "cause",
+              "obs",
+              "inter",
+              "effect"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable label shown in reports and graph visualisations.",
+            "default": ""
+          },
+          "degradation_modes": {
+            "type": "array",
+            "description": "Specific physical failure modes for this node. Primarily applicable to root_cause nodes.",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "examples": [
+              [
+                "panel_aging",
+                "dust_accumulation",
+                "partial_shadowing"
+              ]
+            ]
+          },
+          "subsystem": {
+            "type": "string",
+            "description": "Optional grouping label (e.g. 'EPS', 'ADCS', 'COMMS') used by visualisers to colour-code nodes.",
+            "default": ""
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "description": "List of directed causal edge objects. Each edge represents 'failures in source cause effects in target'.",
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "target"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "id of the source (cause) node. Must be declared in nodes."
+          },
+          "target": {
+            "type": "string",
+            "description": "id of the target (effect) node. Must be declared in nodes."
+          },
+          "weight": {
+            "type": "number",
+            "description": "Strength of the causal relationship. 1.0 = deterministic; 0.5 = moderate; 0.0 = no effect.",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "default": 1.0
+          },
+          "mechanism": {
+            "type": "string",
+            "description": "Natural-language explanation of the physical mechanism. Shown in operator reports alongside the root-cause hypothesis.",
+            "default": ""
+          }
+        }
+      }
+    }
+  }
+}

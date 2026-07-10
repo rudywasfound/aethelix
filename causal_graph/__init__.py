@@ -1,5 +1,6 @@
 from causal_graph.graph_definition import CausalGraph, NodeType, Node, Edge
 from causal_graph.root_cause_ranking import RootCauseRanker, RootCauseHypothesis
+from causal_graph.dag_loader import load_dag, dump_dag, DAGLoadError
 
 try:
     from causal_graph.visualizer import DAGVisualizer
@@ -16,4 +17,8 @@ __all__ = [
     "DAGVisualizer",
     "RootCauseRanker",
     "RootCauseHypothesis",
+    # Pluggable DAG loader
+    "load_dag",
+    "dump_dag",
+    "DAGLoadError",
 ]

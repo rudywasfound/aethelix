@@ -197,11 +197,12 @@ class PowerSimulator:
             efficiency = np.ones(self.num_samples)
 
         # ── Power balance (fully vectorized) ──────────────────────────────────
-        # charge_delta[i] = (P_in[i] - P_out) × dt / (capacity × 3600) × 100
+        # charge_delta[i] = (P_in[i] - P_out) × dt / (capacity × V_nom × 3600) × 100
         power_in    = solar_input * efficiency
         charge_delta = (power_in - load_power) * self.dt / (
-            self.nominal_battery_capacity * 3600.0
+            self.nominal_battery_capacity * self.nominal_battery_voltage * 3600.0
         ) * 100.0
+
 
         # ── Charge integration via cumsum ─────────────────────────────────────
         # cumsum gives the running total of deltas; add initial_charge for offset.

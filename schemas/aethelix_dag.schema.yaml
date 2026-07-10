@@ -1,0 +1,187 @@
+# Aethelix DAG Schema — v1.0
+# ----------------------------
+# This file is the machine-readable (YAML) reference for the Aethelix
+# pluggable satellite DAG format.  It is intentionally written as a
+# self-describing document rather than a formal JSON Schema object, so it
+# can be read by humans and used as a quick authoring reference.
+#
+# For the full narrative documentation see:  docs/yaml_dag_schema.md
+# For validated example configs see:        configs/
+
+schema_meta:
+  schema_version: "1.0"
+  aethelix_version: ">=1.0"
+  format: YAML or JSON
+  file_extensions: [.yaml, .yml, .json]
+  loader_module: causal_graph.dag_loader
+  loader_function: load_dag
+
+# ===========================================================================
+# TOP-LEVEL STRUCTURE
+# ===========================================================================
+#
+# A valid Aethelix DAG file must be a YAML/JSON *mapping* (dict) with the
+# following keys:
+
+top_level_keys:
+
+  aethelix_dag_version:
+    type: string
+    required: false          # defaults to "1.0" if omitted
+    example: "1.0"
+    description: >
+      Schema version this file targets.  Major-version mismatch raises
+      DAGLoadError; minor-version mismatch emits a warning.
+
+  satellite:
+    type: mapping
+    required: false
+    description: >
+      Free-form metadata block describing the satellite.  Not used by the
+      inference engine — purely for documentation and provenance.
+    recommended_fields:
+      name:         string   # e.g. "GSAT-6A"
+      agency:       string   # e.g. "ISRO"
+      orbit:        string   # e.g. "GEO" | "LEO" | "MEO"
+      mission:      string   # e.g. "Communications (S-band)"
+      failure_date: string   # ISO-8601, e.g. "2018-03-26"
+      description:  string   # Free prose
+
+  nodes:
+    type: list
+    required: true
+    min_items: 1
+    description: >
+      Ordered list of node objects.  Each node is a vertex in the DAG
+      representing a fault, an intermediate physical effect, or an
+      observable telemetry reading.
+    item_schema:
+      id:
+        type: string
+        required: true
+        constraints:
+          - Must be unique within the file
+          - No spaces (use underscores)
+          - Used as the key in CausalGraph.nodes
+        example: solar_degradation
+
+      type:
+        type: string
+        required: true
+        allowed_values:
+          root_cause:   "Primary fault node (the diagnosis target)"
+          intermediate: "Unobservable propagation node"
+          observable:   "Measured telemetry value"
+        aliases:
+          fault:  root_cause
+          cause:  root_cause
+          obs:    observable
+          inter:  intermediate
+          effect: intermediate
+
+      description:
+        type: string
+        required: false
+        default: ""
+        description: Human-readable label shown in reports and graph visualisations.
+
+      degradation_modes:
+        type: list of strings
+        required: false
+        default: []
+        description: >
+          Specific physical failure modes for this node.  Used by the
+          root-cause ranker to enrich explanations.
+        example: [panel_aging, dust_accumulation, partial_shadowing]
+
+      subsystem:
+        type: string
+        required: false
+        default: ""
+        description: >
+          Optional grouping label (e.g. "EPS", "ADCS", "COMMS") used by
+          visualisers to colour-code nodes by subsystem.
+
+  edges:
+    type: list
+    required: true
+    min_items: 0
+    description: >
+      List of directed causal edge objects.  Each edge represents
+      "failures in source cause effects in target".
+    item_schema:
+      source:
+        type: string
+        required: true
+        description: id of the source (cause) node.  Must be declared in nodes.
+
+      target:
+        type: string
+        required: true
+        description: id of the target (effect) node.  Must be declared in nodes.
+
+      weight:
+        type: float
+        required: false
+        default: 1.0
+        range: [0.0, 1.0]
+        description: >
+          Strength of the causal relationship.
+          1.0 = deterministic (always causes effect);
+          0.5 = moderate influence;
+          0.0 = no effect.
+
+      mechanism:
+        type: string
+        required: false
+        default: ""
+        description: >
+          Natural-language explanation of the physical mechanism.
+          Shown in operator reports alongside the root-cause hypothesis.
+        example: >
+          Reduced panel output due to physical degradation or shadowing
+
+# ===========================================================================
+# VALIDATION RULES (enforced by load_dag / validate_schema)
+# ===========================================================================
+
+validation_rules:
+  - id: V1
+    rule: File must be a YAML/JSON object (dict), not a list or scalar.
+  - id: V2
+    rule: aethelix_dag_version major must match loader's SCHEMA_VERSION major (1).
+  - id: V3
+    rule: nodes must be present and non-empty.
+  - id: V4
+    rule: edges must be present (may be empty list).
+  - id: V5
+    rule: Every node must have id (string) and type (enum).
+  - id: V6
+    rule: Node ids must be unique within the file.
+  - id: V7
+    rule: Every edge source and target must reference a declared node id.
+  - id: V8
+    rule: edge.weight must be a float in [0.0, 1.0].
+  - id: V9
+    rule: The graph must be acyclic (Kahn's topological sort; DAGLoadError on cycle).
+
+# ===========================================================================
+# MINIMAL VALID EXAMPLE
+# ===========================================================================
+
+minimal_example: |
+  aethelix_dag_version: "1.0"
+  satellite:
+    name: My Satellite
+  nodes:
+    - id: my_fault
+      type: root_cause
+      description: Example root cause
+    - id: my_effect
+      type: observable
+      description: Example observable telemetry
+  edges:
+    - source: my_fault
+      target: my_effect
+      weight: 0.9
+      mechanism: Fault propagates to telemetry reading
