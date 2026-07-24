@@ -1,5 +1,5 @@
 """
-Causal graph definition for satellite power and thermal subsystems.
+Causal graph definition for satellite multi-subsystem fault diagnosis.
 
 This module encodes engineering domain knowledge as a directed acyclic graph (DAG).
 The graph represents how failures propagate through satellites:
@@ -17,22 +17,28 @@ Why a causal graph:
 4. Domain experts (ISRO engineers) can validate and refine the structure
 5. Handles confounding effects (one fault causing secondary deviations)
 
-The graph structure:
-- 7 ROOT CAUSES (primary faults we want to identify)
-- 8 INTERMEDIATE nodes (effects that propagate between subsystems)
-- 8 OBSERVABLE nodes (measured telemetry we can see)
-- 29 directed edges with weights and mechanisms
+The graph structure (built-in GSAT-6A multi-subsystem graph):
+- 19 ROOT CAUSES across 6 subsystems (power, ADCS, comms, OBC, propulsion)
+- 13 INTERMEDIATE nodes (effects that propagate between subsystems)
+- 20 OBSERVABLE nodes (measured telemetry we can see)
+- 58 directed edges with weights and mechanisms
+- 52 total nodes
 
-This encoding enables Bayesian causal inference to rank hypotheses about
-which root causes best explain observed deviations in telemetry.
+This encoding enables heuristic causal ranking (current) and optional
+structural causal model (SCM) queries to rank hypotheses about which root
+causes best explain observed deviations in telemetry.
 """
 
 from __future__ import annotations
 
+import logging
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Set, Any, Optional, Tuple, Union
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 try:
     from aethelix.rust_core import PyCausalGraph  # type: ignore[import-not-found]
@@ -62,6 +68,35 @@ class NodeType(Enum):
 
 
 @dataclass
+class StructuralEquation:
+    """
+    Linear-Gaussian structural equation for a single node in an SCM.
+
+    For a node Y with parents X1, X2, ...:
+        Y = coefficients['X1'] * X1 + coefficients['X2'] * X2 + ... + N(0, noise_std)
+
+    For root-cause (exogenous) nodes with no parents:
+        Y = N(0, noise_std)   (or a fixed intervention value under do())
+
+    .. warning::
+        Default coefficients are derived from hand-set edge weights in the
+        GSAT-6A case study and are NOT empirically calibrated.  Outputs
+        from ``do()`` / ``ate()`` / ``sample()`` are syntactically valid
+        causal queries, but the numerical results reflect guesses about
+        causal strength — not validated causal effect estimates.
+    """
+
+    coefficients: Dict[str, float] = field(default_factory=dict)  # parent_name → coefficient
+    noise_std: float = 0.1           # Std dev of additive Gaussian noise
+    noise_dist: str = "gaussian"     # Distribution family (only gaussian supported currently)
+
+
+class SCMNotConfiguredError(RuntimeError):
+    """Raised when do()/sample()/ate() is called on a graph lacking structural equations."""
+    pass
+
+
+@dataclass
 class Node:
     """
     A node in the causal graph.
@@ -79,6 +114,7 @@ class Node:
     node_type: NodeType                 # Is this a cause, intermediate, or observable?
     description: str                    # Natural language explanation for operators
     degradation_modes: List[str] = field(default_factory=list)  # How can this node fail?
+    structural_equation: Optional[StructuralEquation] = None    # SCM equation (None = not configured)
 
 
 @dataclass
@@ -103,8 +139,17 @@ class Edge:
 
 class CausalGraph:
     """
-    DAG representing causal relationships in power and thermal subsystems.
-    Encodes engineering knowledge for Bayesian root cause inference.
+    DAG representing causal relationships across satellite subsystems.
+    Encodes engineering knowledge for heuristic root-cause ranking and
+    optional structural causal model (SCM) queries.
+
+    The graph supports two usage modes:
+
+    1. **Heuristic scoring** (current default): path-strength × consistency ×
+       severity × depth_prior, normalized to sum-to-1 ranking scores.
+    2. **SCM queries** (optional): when structural equations are configured,
+       supports ``do()``, ``sample()``, and ``ate()`` for interventional
+       reasoning.  See :class:`StructuralEquation` for calibration caveats.
 
     Parameters
     ----------
@@ -131,17 +176,26 @@ class CausalGraph:
         self.edges: List[Edge] = []        # List of causal edges
         self.dag_meta: Dict[str, Any] = {} # populated when loading from file
 
+        # Memoization cache for Python-fallback path enumeration (#6)
+        self._path_cache: Dict[str, List[Tuple[List[str], float]]] = {}
+
         # High-performance Rust backend for complex graph operations
         if RUST_CORE_AVAILABLE:
             self.rust_graph = PyCausalGraph()
         else:
             self.rust_graph = None
+            logger.warning(
+                "Rust core not available — using Python fallback for graph "
+                "traversal. This will be significantly slower for large graphs. "
+                "Build with `maturin develop` to enable the fast path."
+            )
 
         if dag_path is not None:
             # ----------------------------------------------------------------
             # Pluggable-DAG path: delegate entirely to dag_loader.
             # This populates self.nodes / self.edges / self.dag_meta from the
             # YAML/JSON file and skips all hardcoded subsystem builders.
+            # dag_loader already performs acyclicity validation.
             # ----------------------------------------------------------------
             from causal_graph.dag_loader import load_dag  # deferred to avoid circular import
             _loaded = load_dag(dag_path)
@@ -162,8 +216,237 @@ class CausalGraph:
             self._build_propulsion_subsystem_graph()
             self._build_cross_subsystem_coupling()
 
+            # Wire up default structural equations for all nodes.
+            # Coefficients are derived from edge weights — see provenance
+            # warnings in StructuralEquation docstring.
+            self._wire_default_structural_equations()
+
+        # Verify acyclicity — ancestral sampling requires topological order,
+        # and a single accidental back-edge would silently break sample()
+        # or infinite-loop get_weighted_paths_to_root().
+        self._assert_acyclic()
+
+    def _assert_acyclic(self) -> None:
+        """Verify the graph is a DAG using Kahn's algorithm. Fails loudly on cycles."""
+        in_degree: Dict[str, int] = {name: 0 for name in self.nodes}
+        adj: Dict[str, List[str]] = {name: [] for name in self.nodes}
+
+        for edge in self.edges:
+            adj[edge.source].append(edge.target)
+            in_degree[edge.target] += 1
+
+        queue = deque([n for n, d in in_degree.items() if d == 0])
+        visited = 0
+        while queue:
+            node = queue.popleft()
+            visited += 1
+            for child in adj[node]:
+                in_degree[child] -= 1
+                if in_degree[child] == 0:
+                    queue.append(child)
+
+        if visited != len(self.nodes):
+            cyclic = [n for n, d in in_degree.items() if d > 0]
+            raise ValueError(
+                f"CausalGraph contains a cycle involving nodes: {cyclic[:5]}. "
+                "A causal DAG must be acyclic. Check _build_cross_subsystem_coupling "
+                "and any recently added edges."
+            )
+
+    def _topological_order(self) -> List[str]:
+        """Return nodes in topological order (parents before children)."""
+        in_degree: Dict[str, int] = {name: 0 for name in self.nodes}
+        adj: Dict[str, List[str]] = {name: [] for name in self.nodes}
+
+        for edge in self.edges:
+            adj[edge.source].append(edge.target)
+            in_degree[edge.target] += 1
+
+        queue = deque([n for n, d in in_degree.items() if d == 0])
+        order: List[str] = []
+        while queue:
+            node = queue.popleft()
+            order.append(node)
+            for child in adj[node]:
+                in_degree[child] -= 1
+                if in_degree[child] == 0:
+                    queue.append(child)
+        return order
+
+    def _wire_default_structural_equations(self) -> None:
+        """
+        Assign default linear-Gaussian structural equations to all nodes
+        using existing edge weights as coefficients.
+
+        .. warning::
+            These coefficients are derived from hand-set edge weights tuned
+            against the GSAT-6A case study.  They are NOT empirically
+            calibrated.  See :class:`StructuralEquation` docstring.
+        """
+        for name, node in self.nodes.items():
+            parents = self.get_parents(name)
+            coefficients = {p: w for p, w in parents.items()}
+            # Root causes (no parents) get higher noise — they represent
+            # exogenous variation.  Intermediates/observables get lower noise.
+            if node.node_type == NodeType.ROOT_CAUSE:
+                noise_std = 1.0
+            elif node.node_type == NodeType.OBSERVABLE:
+                noise_std = 0.05  # measurement noise
+            else:
+                noise_std = 0.1   # process noise
+            node.structural_equation = StructuralEquation(
+                coefficients=coefficients,
+                noise_std=noise_std,
+            )
+
+    def set_structural_equation(
+        self,
+        node_name: str,
+        coefficients: Dict[str, float],
+        noise_std: float = 0.1,
+    ) -> None:
+        """
+        Set or override the structural equation for a specific node.
+
+        Parameters
+        ----------
+        node_name : str
+            Must be an existing node in the graph.
+        coefficients : dict
+            Mapping from parent node name to linear coefficient.
+        noise_std : float
+            Standard deviation of additive Gaussian noise.
+        """
+        if node_name not in self.nodes:
+            raise ValueError(f"Node '{node_name}' not in graph")
+        self.nodes[node_name].structural_equation = StructuralEquation(
+            coefficients=coefficients,
+            noise_std=noise_std,
+        )
+
+    def has_structural_equations(self) -> bool:
+        """Return True if ALL nodes have structural equations configured."""
+        return all(
+            node.structural_equation is not None
+            for node in self.nodes.values()
+        )
+
+    def sample(
+        self,
+        n: int = 1000,
+        interventions: Optional[Dict[str, float]] = None,
+    ) -> Any:
+        """
+        Ancestral sampling from the SCM (observational or interventional).
+
+        Parameters
+        ----------
+        n : int
+            Number of samples to draw.
+        interventions : dict or None
+            If provided, implements do(X=x) by clamping specified nodes
+            and cutting their incoming edges (truncated factorisation).
+
+        Returns
+        -------
+        dict
+            Mapping from node name to numpy array of samples.
+
+        Raises
+        ------
+        SCMNotConfiguredError
+            If any node lacks a structural equation.
+        """
+        import numpy as np
+
+        if not self.has_structural_equations():
+            missing = [n for n, nd in self.nodes.items() if nd.structural_equation is None]
+            source = self.dag_meta.get("source_file", "unknown")
+            raise SCMNotConfiguredError(
+                f"Cannot sample: {len(missing)} nodes lack structural equations "
+                f"(e.g. {missing[:3]}). This graph was loaded from '{source}'. "
+                "Add structural_equation blocks to the YAML or set them "
+                "programmatically via graph.set_structural_equation(...)."
+            )
+
+        if interventions is None:
+            interventions = {}
+
+        order = self._topological_order()
+        values: Dict[str, Any] = {}
+
+        for node_name in order:
+            if node_name in interventions:
+                # do(X=x): clamp to intervention value
+                values[node_name] = np.full(n, interventions[node_name])
+            else:
+                se = self.nodes[node_name].structural_equation
+                assert se is not None  # guarded by has_structural_equations check
+                # Y = sum(coeff_i * parent_i) + noise
+                result = np.zeros(n)
+                for parent, coeff in se.coefficients.items():
+                    if parent in values:
+                        result += coeff * values[parent]
+                result += np.random.normal(0, se.noise_std, n)
+                values[node_name] = result
+
+        return values
+
+    def do(self, interventions: Dict[str, float]) -> "CausalGraph":
+        """
+        Return a copy of this graph with do(X=x) interventions applied.
+
+        The returned graph has incoming edges to intervened nodes removed
+        and their structural equations replaced with constant values.
+        This implements Pearl's truncated factorisation.
+
+        Parameters
+        ----------
+        interventions : dict
+            Mapping from node name to intervention value.
+
+        Returns
+        -------
+        CausalGraph
+            A new graph with interventions applied.
+        """
+        import copy
+
+        if not self.has_structural_equations():
+            missing = [n for n, nd in self.nodes.items() if nd.structural_equation is None]
+            source = self.dag_meta.get("source_file", "unknown")
+            raise SCMNotConfiguredError(
+                f"Cannot apply do(): {len(missing)} nodes lack structural equations. "
+                f"Graph source: '{source}'."
+            )
+
+        intervened = copy.deepcopy(self)
+        for node_name, value in interventions.items():
+            if node_name not in intervened.nodes:
+                raise ValueError(f"Cannot intervene on '{node_name}': not in graph")
+            # Remove incoming edges (truncated factorisation)
+            intervened.edges = [
+                e for e in intervened.edges if e.target != node_name
+            ]
+            # Replace structural equation with constant
+            intervened.nodes[node_name].structural_equation = StructuralEquation(
+                coefficients={},
+                noise_std=0.0,
+            )
+        # Clear path cache since edges changed
+        intervened._path_cache = {}
+        return intervened
+
     def _build_power_subsystem_graph(self):
-        """Build power/thermal graph layers: faults, effects, and telemetry."""
+        """
+        Build power/thermal graph layers: faults, effects, and telemetry.
+
+        .. note:: Weight provenance
+            All edge weights in this method are hand-set based on the GSAT-6A
+            case study and engineering domain knowledge.  They are NOT
+            calibrated against held-out data.  See issue #2 in the project
+            audit for details on what calibration would require.
+        """
 
         # Root Causes
 
@@ -610,6 +893,10 @@ class CausalGraph:
         ADCS faults are the #1 cause of mission loss for small satellites.
         A reaction wheel failure doesn't just stop rotation; it creates
         induced jitter and thermal stress, impacting payload data quality.
+
+        .. note:: Weight provenance
+            Edge weights hand-set from engineering domain knowledge.
+            Not calibrated against held-out data.
         """
 
         # ========== ROOT CAUSES: ADCS ==========
@@ -700,6 +987,10 @@ class CausalGraph:
         WHY THIS MATTERS OPERATIONALLY:
         A 'silent satellite' mode is the ultimate failure. Identifying HPA
         degradation before total loss allows for adaptive modulation switching.
+
+        .. note:: Weight provenance
+            Edge weights hand-set from engineering domain knowledge.
+            Not calibrated against held-out data.
         """
 
         # Comms Root Causes
@@ -775,6 +1066,10 @@ class CausalGraph:
         WHY THIS MATTERS OPERATIONALLY:
         Differentiating between a 'busy' CPU and 'stuck' logic prevents
         unnecessary watchdog resets that could interrupt critical maneuvers.
+
+        .. note:: Weight provenance
+            Edge weights hand-set from engineering domain knowledge.
+            Not calibrated against held-out data.
         """
 
         # OBC Root Causes
@@ -852,6 +1147,10 @@ class CausalGraph:
         Propulsion is mission-critical for station-keeping. Distinguishing
         between a 'stuck' valve and a true 'leak' is the difference between
         a repairable software fix and a mission-ending catastrophe.
+
+        .. note:: Weight provenance
+            Edge weights hand-set from engineering domain knowledge.
+            Not calibrated against held-out data.
         """
 
         # Propulsion Root Causes
@@ -961,7 +1260,11 @@ class CausalGraph:
             raise ValueError(f"Target node '{target}' not in graph")
 
         self.edges.append(Edge(source, target, weight, mechanism))
-        
+
+        # Invalidate Python path memoization cache (edges changed)
+        if hasattr(self, '_path_cache'):
+            self._path_cache.clear()
+
         # Mirror in Rust core for fast traversal
         if self.rust_graph:
             self.rust_graph.add_edge(source, target, float(weight))
@@ -1041,19 +1344,28 @@ class CausalGraph:
         Find all causal paths from a node back to root causes, including
         the cumulative causal strength (product of edge weights).
         
-        Uses high-performance Rust core if available.
+        Uses high-performance Rust core if available, with a memoized
+        Python fallback for deployments without the Rust extension.
         """
         if self.rust_graph:
             return self.rust_graph.get_weighted_paths_to_root(node_name, max_depth)
 
-        # Fallback to recursive Python implementation
+        # Memoized Python fallback — avoids re-walking parent chains
+        # from scratch on every call (critical for the 52-node graph
+        # with cross-subsystem diamond paths).
+        cache_key = f"{node_name}:{max_depth}"
+        if cache_key in self._path_cache:
+            return self._path_cache[cache_key]
+
         if max_depth == 0:
             return []
 
         parents = self.get_parents(node_name)
         if not parents:
             # We've reached a root cause
-            return [([node_name], 1.0)]
+            result = [([node_name], 1.0)]
+            self._path_cache[cache_key] = result
+            return result
 
         all_results = []
         for parent, weight in parents.items():
@@ -1062,6 +1374,7 @@ class CausalGraph:
                 new_path = path + [node_name]
                 all_results.append((new_path, parent_strength * weight))
 
+        self._path_cache[cache_key] = all_results
         return all_results
 
     def get_paths_to_root(self, node_name: str, max_depth: int = 10) -> List[List[str]]:

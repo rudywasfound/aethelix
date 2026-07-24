@@ -1,23 +1,95 @@
 """
 Root cause ranking algorithms for multi-fault diagnosis.
-Infers likely causes from telemetry deviations using Bayesian reasoning over a causal graph.
+Infers likely causes from telemetry deviations using heuristic scoring
+over a causal graph.
 
 Upgrades over v1:
   1. Softened consistency penalty (β=0.5 → kills fewer secondary hypotheses, fixes Top-3)
   2. Depth-from-root prior (rewards true root-cause nodes, penalises intermediate nodes)
   3. Joint two-hypothesis scoring (fixes multi-fault 24% accuracy)
-  4. YAML-pluggable DAG schema loader (graph/dag_schema.yaml)
+
+.. note:: Tuning provenance
+    All scoring constants in this module were hand-tuned against the
+    GSAT-6A 100-scenario stochastic benchmark (seed 42).  They are NOT
+    calibrated against held-out data.  See ``ScoringConfig`` for details.
 """
 
+import logging
 import json as _json
 import numpy as np
-import yaml
-import os
 import itertools
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple, Optional
 from simulator.power import PowerTelemetry
 from causal_graph.graph_definition import CausalGraph, NodeType
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ScoringConfig:
+    """
+    All hand-tuned scoring constants in one place, with provenance.
+
+    Each constant documents:
+    - What it controls
+    - What value it was before tuning
+    - Why it was changed
+    - What dataset it was tuned against
+    """
+
+    consistency_penalty_weight: float = 0.5
+    """β — consistency penalty weight.
+    Was implicitly ~1.0 before. At 1.0, hypotheses that explain most anomalies
+    but predict one extra quiet channel are zeroed out, collapsing the Top-3 list.
+    At 0.5, secondary hypotheses are penalised but not eliminated, which pushes
+    Top-3 accuracy past correlation's 95%.
+    Tuned against: GSAT-6A 100-scenario benchmark (seed 42)."""
+
+    path_strength_threshold: float = 0.10
+    """Minimum path-strength for a channel to 'count' as predicted by a hypothesis.
+    Not explicitly tuned; set to 0.10 as a reasonable minimum."""
+
+    consistency_missing_penalty: float = 0.15
+    """Penalty weight for missing expected evidence.
+    Was 0.3 in v1. Reduced to 0.15 so that hypotheses with partial evidence
+    are not over-penalised — some channels may be masked by eclipse or sensor dropout.
+    Tuned against: GSAT-6A 100-scenario benchmark (seed 42)."""
+
+    joint_pairing_cutoff: int = 6
+    """Only pair the top-K single hypotheses for joint scoring.
+    Keeps O(n²) manageable. K=6 covers all meaningful candidates in the
+    19-root-cause graph."""
+
+    joint_gate_coverage: float = 0.90
+    """Only run joint scoring when top single hypothesis coverage < this.
+    Avoids cluttering output when one cause already explains everything."""
+
+    joint_improvement_threshold: float = 0.05
+    """Joint hypothesis must beat single top-1 by this margin (pp) to be included."""
+
+    eclipse_phase_range: Tuple[float, float] = (0.42, 0.58)
+    """Orbital phase range for eclipse window suppression.
+    Default tuned for GEO orbit (GSAT-6A). LEO missions will see eclipse
+    fractions of ~30-40% of the orbit and MUST override this via
+    ScoringConfig(eclipse_phase_range=(start, end))."""
+
+    dead_sensor_epsilon: float = 1e-6
+    """Threshold for dead-sensor detection. Replaces exact float equality
+    (latest_val == 0.0) which is fragile for real telemetry.
+    Catches stuck-at-zero sensors (common CCSDS telemetry failure mode)."""
+
+    dead_sensor_count_threshold: int = 3
+    """Number of consecutive dead readings before a sensor is suppressed."""
+
+    depth_prior_by_depth: Dict[int, float] = field(default_factory=lambda: {
+        0: 1.0, 1: 0.70, 2: 0.50,
+    })
+    """Prior weight by topological depth from root. Depth 3+ defaults to
+    depth_prior_default."""
+
+    depth_prior_default: float = 0.35
+    """Prior weight for nodes at depth 3+."""
 
 
 @dataclass
@@ -82,19 +154,19 @@ class RootCauseRanker:
     # Minimum path-strength for a channel to "count" as predicted by a hypothesis
     PATH_STRENGTH_THRESHOLD = 0.10
 
-    def __init__(self, graph: CausalGraph, dag_schema_path: Optional[str] = None):
+    def __init__(self, graph: CausalGraph, scoring_config: Optional[ScoringConfig] = None):
         """
         Args:
-            graph:           CausalGraph instance containing domain knowledge.
-            dag_schema_path: Optional path to a YAML DAG schema file.
-                             If provided, the schema overrides the graph's
-                             built-in node/edge definitions.  See
-                             causal_graph/dag_schema.yaml for the format.
+            graph:          CausalGraph instance containing domain knowledge.
+            scoring_config: Optional ScoringConfig to override default tuning.
+                            If None, uses the default hand-tuned constants.
         """
         self.graph = graph
+        self.scoring_config = scoring_config or ScoringConfig()
 
-        if dag_schema_path and os.path.exists(dag_schema_path):
-            self._load_dag_schema(dag_schema_path)
+        # Backward-compatible class constants (delegate to config)
+        self.CONSISTENCY_PENALTY_WEIGHT = self.scoring_config.consistency_penalty_weight
+        self.PATH_STRENGTH_THRESHOLD = self.scoring_config.path_strength_threshold
 
         # For every node in the graph, compute its shortest distance from any
         # root-cause node (a node with no incoming edges).  Nodes closer to
@@ -149,6 +221,10 @@ class RootCauseRanker:
             "fuel_pressure_anomaly":        ["tank_pressure"],
         }
 
+        # Override with expected evidence from YAML if loaded via dag_loader
+        if "expected_evidence" in getattr(self.graph, "dag_meta", {}):
+            self._expected_evidence.update(self.graph.dag_meta["expected_evidence"])
+
         # Dynamically build expected evidence for any root cause not statically defined
         for rc in self.graph.get_root_causes():
             if rc not in self._expected_evidence:
@@ -177,8 +253,8 @@ class RootCauseRanker:
         root-cause nodes, even when their path strength to observables
         is similar.
         """
-        prior_by_depth = {0: 1.0, 1: 0.70, 2: 0.50}
-        default_deep   = 0.35
+        prior_by_depth = self.scoring_config.depth_prior_by_depth
+        default_deep   = self.scoring_config.depth_prior_default
 
         depth_prior: Dict[str, float] = {}
 
@@ -219,55 +295,27 @@ class RootCauseRanker:
         return depth_prior
 
 
-    def _load_dag_schema(self, path: str) -> None:
-        """
-        Load a YAML DAG schema and apply it to the graph.
+    # _load_dag_schema removed (#5 — DAG loader consolidation).
+    # Use CausalGraph(dag_path="...") instead of passing dag_schema_path
+    # to RootCauseRanker.  One loader, one validation path.
 
-        Expected YAML format (see causal_graph/dag_schema.yaml):
 
-            nodes:
-              - name: solar_degradation
-                type: root_cause          # root_cause | intermediate | observable
-                subsystem: power
-                description: "..."
-
-            edges:
-              - from: solar_degradation
-                to:   solar_input_state
-                weight: 0.90
-                mechanism: "Reduced PV efficiency lowers generated power"
-
-            expected_evidence:            # optional override
-              solar_degradation:
-                - solar_input
-                - battery_charge
-        """
-        with open(path, "r") as f:
-            schema = yaml.safe_load(f)
-
-        # Rebuild expected_evidence if the schema overrides it
-        if "expected_evidence" in schema:
-            self._expected_evidence.update(schema["expected_evidence"])
-
-        # Add any new edges defined in the schema to the live graph
-        if "edges" in schema:
-            for edge in schema["edges"]:
-                src  = edge["from"]
-                tgt  = edge["to"]
-                w    = float(edge.get("weight", 0.5))
-                mech = edge.get("mechanism", "")
-                try:
-                    if src not in self.graph.nodes:
-                        self.graph.add_node(src, NodeType.ROOT_CAUSE, f"Dynamically added source {src}")
-                    if tgt not in self.graph.nodes:
-                        self.graph.add_node(tgt, NodeType.OBSERVABLE, f"Dynamically added target {tgt}")
-                    self.graph.add_edge(src, tgt, weight=w, mechanism=mech)
-                except Exception:
-                    pass
-
-        # Rebuild depth prior with updated graph
-        self._depth_prior = self._build_depth_prior()
-
+    def export_config(self) -> dict:
+        """Dump current scoring configuration as a plain dict."""
+        cfg = self.scoring_config
+        return {
+            "consistency_penalty_weight": cfg.consistency_penalty_weight,
+            "path_strength_threshold": cfg.path_strength_threshold,
+            "consistency_missing_penalty": cfg.consistency_missing_penalty,
+            "joint_pairing_cutoff": cfg.joint_pairing_cutoff,
+            "joint_gate_coverage": cfg.joint_gate_coverage,
+            "joint_improvement_threshold": cfg.joint_improvement_threshold,
+            "eclipse_phase_range": cfg.eclipse_phase_range,
+            "dead_sensor_epsilon": cfg.dead_sensor_epsilon,
+            "dead_sensor_count_threshold": cfg.dead_sensor_count_threshold,
+            "depth_prior_by_depth": cfg.depth_prior_by_depth,
+            "depth_prior_default": cfg.depth_prior_default,
+        }
 
     def analyze(
         self,
@@ -306,7 +354,7 @@ class RootCauseRanker:
             top_single_coverage = self._coverage(
                 single_hypotheses[0].name if single_hypotheses else "", anomalies
             )
-            if top_single_coverage < 0.90:
+            if top_single_coverage < self.scoring_config.joint_gate_coverage:
                 joint_hypotheses = self._score_joint_hypotheses(anomalies, single_hypotheses)
 
         # Merge: keep all single hypotheses, append joint ones that beat the
@@ -315,7 +363,7 @@ class RootCauseRanker:
         top_single_prob = single_hypotheses[0].probability if single_hypotheses else 0.0
         meaningful_joints = [
             j for j in joint_hypotheses
-            if j.joint_probability > top_single_prob + 0.05
+            if j.joint_probability > top_single_prob + self.scoring_config.joint_improvement_threshold
         ]
 
         all_hypotheses = single_hypotheses + meaningful_joints
@@ -425,7 +473,7 @@ class RootCauseRanker:
         Only the top-K single candidates are considered for pairing to keep
         O(n²) manageable.  Default K=6 covers all meaningful candidates.
         """
-        K = 6  # only pair the top-K single hypotheses
+        K = self.scoring_config.joint_pairing_cutoff
         candidates = [h.name for h in single_hypotheses[:K]]
 
         if len(candidates) < 2:
@@ -561,7 +609,15 @@ class RootCauseRanker:
         orbital_phase: float = 0.5,
     ) -> Dict[str, float]:
         anomalies: Dict[str, float] = {}
-        is_eclipse = 0.42 <= orbital_phase <= 0.58
+        cfg = self.scoring_config
+
+        # Eclipse window suppression: during eclipse, solar channels show
+        # expected zero readings that are not anomalies.
+        # Default range (0.42-0.58) is tuned for GEO orbit (GSAT-6A).
+        # LEO missions see ~30-40% eclipse fraction and MUST override
+        # via ScoringConfig(eclipse_phase_range=(start, end)).
+        eclipse_lo, eclipse_hi = cfg.eclipse_phase_range
+        is_eclipse = eclipse_lo <= orbital_phase <= eclipse_hi
 
         candidate_channels = [
             "solar_input", "battery_voltage", "battery_charge", "bus_voltage",
@@ -579,13 +635,22 @@ class RootCauseRanker:
             deg_values = getattr(degraded, name)
             nom_values = getattr(nominal, name)
 
+            # Dead-sensor detection: catches stuck-at-zero sensors
+            # (common CCSDS telemetry failure mode where a sensor returns
+            # exactly 0.0 or NaN when it loses power or data link).
+            # Uses epsilon comparison instead of exact float equality.
             latest_val = deg_values[-1] if len(deg_values) > 0 else np.nan
-            if np.isnan(latest_val) or latest_val == 0.0:
+            if np.isnan(latest_val) or abs(latest_val) < cfg.dead_sensor_epsilon:
                 self._sensor_dead_counts[name] = self._sensor_dead_counts.get(name, 0) + 1
             else:
                 self._sensor_dead_counts[name] = 0
 
-            if self._sensor_dead_counts[name] >= 3:
+            if self._sensor_dead_counts[name] >= cfg.dead_sensor_count_threshold:
+                logger.warning(
+                    "Sensor '%s' marked dead after %d consecutive zero/NaN readings — "
+                    "suppressing anomaly detection for this channel.",
+                    name, self._sensor_dead_counts[name],
+                )
                 continue
 
             if is_eclipse and name in ["solar_input", "solar_panel_temp"]:
@@ -595,6 +660,14 @@ class RootCauseRanker:
             nom_mean = np.nanmean(nom_values)
             residual = deg_mean - nom_mean
 
+            # Bus voltage overvoltage skip: on a regulated power bus, the
+            # PCDU clamps voltage at the high rail. Only undervoltage
+            # (residual < 0) indicates a supply-side fault (battery
+            # depletion, regulator failure). Overvoltage (residual > 0)
+            # is physically prevented by the regulator and is not a
+            # modelled fault mode.
+            # TODO: This assumption breaks if unregulated bus nodes are
+            # added to the graph — revisit if the model expands.
             if name == "bus_voltage" and residual > 0:
                 continue
 
@@ -670,7 +743,7 @@ class RootCauseRanker:
         matches  = len([e for e in expected if e in observed])
         missing  = len(expected) - matches
 
-        score = matches / (matches + 0.15 * missing) if (matches + missing) > 0 else 0.5
+        score = matches / (matches + self.scoring_config.consistency_missing_penalty * missing) if (matches + missing) > 0 else 0.5
         return score
 
     def _compute_confidence(
@@ -713,39 +786,118 @@ class RootCauseRanker:
 
 
     def get_recommendations(self, cause_name: str, confidence: float) -> Dict[str, str]:
+        """Return domain-specific operator recommendations for all 19 root causes."""
         if confidence < 0.20:
             return {}
 
         recs = {
+            # ===== POWER SUBSYSTEM =====
             "solar_degradation": {
                 "immediate":  "Disable non-critical secondary payloads to reduce load.",
                 "short_term": "Schedule a detailed solar array IV-curve sweep.",
                 "escalation": "If battery SOC < 40%, initiate low-power safe mode.",
+            },
+            "battery_aging": {
+                "immediate":  "Reduce non-critical loads to extend battery cycle life.",
+                "short_term": "Schedule battery capacity test via depth-of-discharge cycling.",
+                "escalation": "If capacity < 60% nameplate, switch to redundant battery string.",
+            },
+            "battery_thermal": {
+                "immediate":  "Enable emergency battery heater/cooler override.",
+                "short_term": "Analyze thermal gradient across battery cell stack.",
+                "escalation": "If cell delta-T > 15°C, command thermal safe mode.",
+            },
+            "sensor_bias": {
+                "immediate":  "Cross-compare with redundant sensor readings.",
+                "short_term": "Initiate autonomous sensor recalibration sequence.",
+                "escalation": "If bias > 5% of full scale, flag sensor for replacement.",
+            },
+            "panel_insulation_degradation": {
+                "immediate":  "Rotate spacecraft to reduce solar panel thermal exposure.",
+                "short_term": "Schedule thermal vacuum performance comparison test.",
+                "escalation": "If panel temp > rated max, disable affected string.",
+            },
+            "battery_heatsink_failure": {
+                "immediate":  "Reduce charge rate to limit internal heat generation.",
+                "short_term": "Activate backup thermal management path.",
+                "escalation": "If battery temp > 45°C, command emergency discharge to safe level.",
+            },
+            "payload_radiator_degradation": {
+                "immediate":  "Reduce payload duty cycle to lower thermal load.",
+                "short_term": "Evaluate alternative heat rejection paths.",
+                "escalation": "If payload temp exceeds derating limit, power down payload.",
             },
             "pcdu_regulator_failure": {
                 "immediate":  "Command switch to redundant PCDU regulator string B.",
                 "short_term": "Analyze thermal telemetry for regulator board hot spots.",
                 "escalation": "If bus voltage < 26.5V, prepare for emergency battery direct-connect.",
             },
+            # ===== ADCS SUBSYSTEM =====
             "wheel_friction": {
                 "immediate":  "Increase wheel heater setpoint by 5°C to thin lubricant.",
                 "short_term": "Switch attitude control to magnetic-only desaturation mode.",
                 "escalation": "If wheel current > 0.8A, command wheel shutdown and use thrusters.",
             },
+            "gyro_drift": {
+                "immediate":  "Switch attitude determination to star tracker primary.",
+                "short_term": "Upload new gyro bias compensation parameters.",
+                "escalation": "If pointing error > mission requirement, enter safe hold.",
+            },
+            "magnetorquer_anomaly": {
+                "immediate":  "Increase reaction wheel desaturation frequency.",
+                "short_term": "Test magnetorquer coils individually via commanded dipole.",
+                "escalation": "If all torquer rods fail, switch to thruster-only attitude control.",
+            },
+            # ===== COMMS SUBSYSTEM =====
+            "transponder_fault": {
+                "immediate":  "Switch to redundant transponder chain.",
+                "short_term": "Reduce modulation order to increase link margin.",
+                "escalation": "If downlink power < -3dBm margin, enter emergency beacon mode.",
+            },
+            "antenna_pointing_error": {
+                "immediate":  "Command antenna gimbal recalibration sweep.",
+                "short_term": "Verify antenna position via ground station signal sweep.",
+                "escalation": "If pointing loss > 3dB, switch to omni-directional antenna.",
+            },
+            "ber_spike": {
+                "immediate":  "Enable forward error correction (FEC) at maximum rate.",
+                "short_term": "Correlate BER with orbital position for interference mapping.",
+                "escalation": "If BER > 1e-3 sustained, switch to backup frequency.",
+            },
+            # ===== OBC SUBSYSTEM =====
             "memory_corruption": {
                 "immediate":  "Initiate task-level reset for affected service.",
                 "short_term": "Perform full memory scrub and checksum validation.",
                 "escalation": "If SEU frequency > 5/hour, command full system cold reboot.",
             },
+            "watchdog_reset_fault": {
+                "immediate":  "Extend watchdog timer timeout to prevent false resets.",
+                "short_term": "Dump reset telemetry log for pattern analysis.",
+                "escalation": "If resets > 3/orbit, enter autonomous safe mode.",
+            },
+            "software_exception": {
+                "immediate":  "Restart affected task with error logging enabled.",
+                "short_term": "Upload patched software module via secure uplink.",
+                "escalation": "If exceptions persist after patch, fall back to safe mode software.",
+            },
+            # ===== PROPULSION SUBSYSTEM =====
+            "thruster_valve_fault": {
+                "immediate":  "Command valve power cycle and verify position feedback.",
+                "short_term": "Perform diagnostic burn with full telemetry recording.",
+                "escalation": "If valve non-responsive, isolate thruster branch and switch to backup.",
+            },
+            "fuel_pressure_anomaly": {
+                "immediate":  "Close isolation valves to contain potential leak.",
+                "short_term": "Monitor pressure trend over 3 orbits for leak rate estimation.",
+                "escalation": "If pressure drop > 5% per orbit, declare propulsion emergency.",
+            },
         }
 
-        default = {
+        return recs.get(cause_name, {
             "immediate":  "Monitor relevant telemetry channels at high sample rate.",
             "short_term": "Review historical trend data for similar signatures.",
             "escalation": "Consult subsystem domain expert if confidence exceeds 60%.",
-        }
-
-        return recs.get(cause_name, default)
+        })
 
     def _explain_mechanism(
         self,
@@ -803,8 +955,6 @@ class RootCauseRanker:
                 base = node.description
             else:
                 base = "Unknown root cause mechanism."
-        if evidence:
-            return f"{base}\nEvidence: {'; '.join(evidence)}"
         return base
 
 
@@ -854,9 +1004,6 @@ if __name__ == "__main__":
     )
 
     graph  = CausalGraph()
-    ranker = RootCauseRanker(
-        graph,
-        dag_schema_path="causal_graph/dag_schema.yaml",  # optional
-    )
+    ranker = RootCauseRanker(graph)
     hypotheses = ranker.analyze(nominal, degraded, deviation_threshold=0.15)
     ranker.print_report(hypotheses)

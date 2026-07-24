@@ -182,7 +182,6 @@ class PowerSimulator:
         min_charge = 20.0   # Battery protection: won't discharge below 20%
         max_charge = 100.0
 
-        # ── Vectorized efficiency mask ─────────────────────────────────────────
         # efficiency[i] = 1.0 before degradation, efficiency_factor after.
         if efficiency_degradation_start_hour is not None:
             degrad_start = int(
@@ -196,7 +195,6 @@ class PowerSimulator:
         else:
             efficiency = np.ones(self.num_samples)
 
-        # ── Power balance (fully vectorized) ──────────────────────────────────
         # charge_delta[i] = (P_in[i] - P_out) × dt / (capacity × V_nom × 3600) × 100
         power_in    = solar_input * efficiency
         charge_delta = (power_in - load_power) * self.dt / (
@@ -204,7 +202,6 @@ class PowerSimulator:
         ) * 100.0
 
 
-        # ── Charge integration via cumsum ─────────────────────────────────────
         # cumsum gives the running total of deltas; add initial_charge for offset.
         # np.clip enforces the [min_charge, max_charge] envelope post-hoc.
         # This is exact for periods between clip events; for continuous contact
@@ -216,7 +213,6 @@ class PowerSimulator:
             max_charge,
         )
 
-        # ── Battery voltage (fully vectorized) ────────────────────────────────
         # Voltage is a linear function of SoC: V = V_nom × (0.8 + 0.2 × SoC/100)
         # Range: 0.8·V_nom (at 0% SoC) to 1.0·V_nom (at 100% SoC)
         soc_factor      = 0.8 + 0.2 * (battery_charge / 100.0)

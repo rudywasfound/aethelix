@@ -36,17 +36,17 @@
 ┌────────────────────────────────────────────────────────────────┐
 │                      CAUSAL GRAPH (DAG)                        │
 │                                                                │
-│  ROOT CAUSES (7)          INTERMEDIATES (8)    OBSERVABLES (8) │
+│  ROOT CAUSES (19)         INTERMEDIATES (13)   OBSERVABLES (20)│
 │  ┌──────────────────┐     ┌────────────────┐  ┌────────────┐   │
 │  │ solar_degr.      │────→│ solar_input    │─→│ measured   │   │
 │  │ battery_aging    │────→│ battery_state  │─→│ telemetry  │   │
-│  │ battery_thermal  │────→│ battery_temp   │─→│  (8 types) │   │
+│  │ battery_thermal  │────→│ battery_temp   │─→│ (20 types) │   │
 │  │ sensor_bias      │     │ bus_regulation │  │            │   │
 │  │ panel_insul.     │────→│ battery_eff.   │  └────────────┘   │
 │  │ heatsink_fail    │────→│ thermal_stress │                   │
 │  │ radiator_degrad. │     └────────────────┘                   │
 │  └──────────────────┘                                          │
-│         (29 edges with weights & mechanisms)                   │
+│         (58 edges with weights & mechanisms)                   │
 └────────────────────┬───────────────────────────────────────────┘
                      │ Graph Traversal + Consistency Check
                      v
@@ -74,8 +74,8 @@ For implementation details, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
 ## Components
 
 ### Framework
-- **`causal_graph/graph_definition.py`**: DAG with 23 nodes, 29 edges
-  - 7 root causes, 8 intermediates, 8 observables
+- **`causal_graph/graph_definition.py`**: DAG with 52 nodes, 58 edges
+  - 19 root causes, 13 intermediates, 20 observables
   - Mechanisms & weights on all edges
   
 - **`causal_graph/visualizer.py`**: Render graphs to PNG/PDF/SVG

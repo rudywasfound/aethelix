@@ -193,14 +193,16 @@ Would require: scoring all 2ⁿ subsets of hypotheses (or a smarter search),
 a joint likelihood that accounts for fault interactions, and a criterion such
 as MAP subset selection or a credible interval over the fault set.
  
-### 7.3 Counterfactual Reasoning
- 
-Would require: structural equations on each node (not just edge weights),
-the ability to intervene on a node (set it to a specific value) and propagate
-the effect, and a formal do-calculus implementation on the DAG.
- 
-None of these are prerequisites for the current engine to be useful. They are
-noted here to make clear what the current engine does not claim.
+### 7.3 Structural Causal Model & Counterfactual Reasoning
+
+Aethelix now implements a formal Structural Causal Model (SCM) layer, providing syntactic validity for do-calculus operations and counterfactual queries via `do()` and `ate()` operations.
+
+**CRITICAL CALIBRATION WARNING:**
+While the truncated factorization `P(effect | do(cause))` is mathematically legitimate within the engine, **the structural coefficients in the default GSAT-6A model are NOT empirically validated**. They are derived from hand-tuned edge weights originally built for heuristic anomaly scoring. 
+
+The SCM layer effectively operates as a structured hypothesis generator, not a factual causal oracle. An ATE number from the formal causal-inference API invites trust, but until you calibrate the structural equations with real interventional or sufficient observational data, the numerical results remain guesses. 
+
+Use these outputs for hypothesis generation and what-if exploration. Do not use them for automated decision-making without empirical calibration.
  
 ---
  

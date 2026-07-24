@@ -131,6 +131,7 @@ def load_dag(path: Union[str, Path]) -> "CausalGraph":  # noqa: F821
         "aethelix_dag_version": validated.get("aethelix_dag_version", SCHEMA_VERSION),
         "satellite": validated.get("satellite", {}),
         "source_file": str(path.resolve()),
+        "expected_evidence": validated.get("expected_evidence", {}),
     }
 
     return graph
@@ -216,13 +217,25 @@ def validate_schema(raw: Dict[str, Any], path: Union[str, Path, None] = None) ->
             )
         canonical_type = _NODE_TYPE_ALIASES[raw_type]
 
-        nodes_validated.append({
+        validated_node = {
             "id": node_id,
             "type": canonical_type,
             "description": str(node.get("description", "")),
             "degradation_modes": [str(m) for m in node.get("degradation_modes", [])],
             "subsystem": str(node.get("subsystem", "")),
-        })
+        }
+
+        # Optional structural_equation parsing
+        if "structural_equation" in node:
+            seq = node["structural_equation"]
+            if not isinstance(seq, dict):
+                raise DAGLoadError(f"nodes[{i}].structural_equation must be a mapping.", p)
+            validated_node["structural_equation"] = {
+                "coefficients": {str(k): float(v) for k, v in seq.get("coefficients", {}).items()},
+                "noise_std": float(seq.get("noise_std", 0.1)),
+            }
+
+        nodes_validated.append(validated_node)
 
     # 5 — Edges list
     edges_raw = raw["edges"]
@@ -280,11 +293,26 @@ def validate_schema(raw: Dict[str, Any], path: Union[str, Path, None] = None) ->
     # 6 — Acyclicity (DFS)
     _assert_acyclic(nodes_validated, edges_validated, p)
 
-    return {
+    # 7 — Expected evidence (optional)
+    expected_evidence_validated = {}
+    if "expected_evidence" in raw:
+        ev_raw = raw["expected_evidence"]
+        if not isinstance(ev_raw, dict):
+            raise DAGLoadError("'expected_evidence' must be a mapping of root_cause -> list[str].", p)
+        for rc, obs_list in ev_raw.items():
+            if not isinstance(obs_list, list):
+                raise DAGLoadError(f"'expected_evidence.{rc}' must be a list of observable IDs.", p)
+            expected_evidence_validated[str(rc)] = [str(o) for o in obs_list]
+
+    result = {
         **raw,
         "nodes": nodes_validated,
         "edges": edges_validated,
     }
+    if expected_evidence_validated:
+        result["expected_evidence"] = expected_evidence_validated
+        
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +391,13 @@ def _populate_nodes(graph: Any, nodes: List[Dict], path: Path) -> None:
             node["description"],
             degradation_modes=node["degradation_modes"],
         )
+        if "structural_equation" in node:
+            seq = node["structural_equation"]
+            graph.set_structural_equation(
+                node_name=node["id"],
+                coefficients=seq["coefficients"],
+                noise_std=seq["noise_std"],
+            )
 
 
 def _populate_edges(graph: Any, edges: List[Dict], path: Path) -> None:

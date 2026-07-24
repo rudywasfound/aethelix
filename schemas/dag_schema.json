@@ -109,8 +109,31 @@
             "type": "string",
             "description": "Optional grouping label (e.g. 'EPS', 'ADCS', 'COMMS') used by visualisers to colour-code nodes.",
             "default": ""
+          },
+          "structural_equation": {
+            "type": "object",
+            "description": "Optional linear-Gaussian SCM parameters for causal effect estimation.",
+            "properties": {
+              "coefficients": {
+                "type": "object",
+                "additionalProperties": { "type": "number" }
+              },
+              "noise_std": {
+                "type": "number",
+                "minimum": 0.0,
+                "default": 0.1
+              }
+            }
           }
         }
+      }
+    },
+    "expected_evidence": {
+      "type": "object",
+      "description": "Optional mapping of root cause ID to list of observable IDs expected to trigger.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
       }
     },
     "edges": {

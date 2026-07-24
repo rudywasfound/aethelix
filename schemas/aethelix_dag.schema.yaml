@@ -102,6 +102,15 @@ top_level_keys:
           Optional grouping label (e.g. "EPS", "ADCS", "COMMS") used by
           visualisers to colour-code nodes by subsystem.
 
+      structural_equation:
+        type: mapping
+        required: false
+        description: >
+          Optional linear-Gaussian SCM parameters for causal effect estimation.
+        recommended_fields:
+          coefficients: mapping of string to float (parent -> weight)
+          noise_std: float (default 0.1)
+
   edges:
     type: list
     required: true
@@ -140,6 +149,15 @@ top_level_keys:
           Shown in operator reports alongside the root-cause hypothesis.
         example: >
           Reduced panel output due to physical degradation or shadowing
+
+  expected_evidence:
+    type: mapping
+    required: false
+    description: >
+      Optional override for the anomaly detector. Maps root_cause IDs to a list
+      of observable IDs that should be triggered by this fault.
+    example:
+      solar_degradation: [solar_input, battery_charge]
 
 # ===========================================================================
 # VALIDATION RULES (enforced by load_dag / validate_schema)
