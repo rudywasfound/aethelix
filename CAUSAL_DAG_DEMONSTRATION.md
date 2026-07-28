@@ -17,15 +17,15 @@ This report demonstrates that **Aethelix is causal inference grounded in Pearl's
 ### Layer 1: Root Causes (7 nodes - what we diagnose)
 
 **Power Subsystem:**
-- ✗ `solar_degradation` - Solar panel efficiency loss
-- ✗ `battery_aging` - Battery cell degradation  
-- ✗ `battery_thermal` - Excessive temperature stress
-- ✗ `sensor_bias` - Measurement calibration drift
+- [X] `solar_degradation` - Solar panel efficiency loss
+- [X] `battery_aging` - Battery cell degradation  
+- [X] `battery_thermal` - Excessive temperature stress
+- [X] `sensor_bias` - Measurement calibration drift
 
 **Thermal Subsystem:**
-- ✗ `panel_insulation_degradation` - Radiator fouling
-- ✗ `battery_heatsink_failure` - Cooling system failure
-- ✗ `payload_radiator_degradation` - Payload heat dissipation failure
+- [X] `panel_insulation_degradation` - Radiator fouling
+- [X] `battery_heatsink_failure` - Cooling system failure
+- [X] `payload_radiator_degradation` - Payload heat dissipation failure
 
 ### Layer 2: Intermediate Effects (8 nodes - how failures propagate)
 
@@ -149,27 +149,27 @@ payload_temp → payload_temp_measured (w=0.96)
 These are **as important as the edges themselves**. They prevent false diagnoses:
 
 ```
-❌ solar_degradation ↛ bus_voltage_measured
+solar_degradation ↛ bus_voltage_measured
    Reason: Solar only affects voltage THROUGH battery state
    Consequence: If bus is stable, solar noise is ignored
 
-❌ battery_aging ↛ battery_temp_measured
+battery_aging ↛ battery_temp_measured
    Reason: Age doesn't cause overheating (thermal properties unchanged)
    Consequence: Aging and thermal are separately diagnosable
 
-❌ panel_insulation_degradation ↛ battery_voltage_measured
+panel_insulation_degradation ↛ battery_voltage_measured
    Reason: Panel insulation doesn't directly affect battery
    Consequence: Panel thermal problems are isolated
 
-❌ sensor_bias ↛ battery_state
+sensor_bias ↛ battery_state
    Reason: Sensors measure; they don't cause physical changes
    Consequence: Measurement errors are distinguishable from real faults
 
-❌ payload_radiator_degradation ↛ bus_voltage_measured
+payload_radiator_degradation ↛ bus_voltage_measured
    Reason: Payload and power systems are causally isolated
    Consequence: Payload problems don't explain power failures
 
-❌ battery_heatsink_failure ↛ solar_input_measured
+battery_heatsink_failure ↛ solar_input_measured
    Reason: Thermal management doesn't affect power generation
    Consequence: Thermal and power faults are separate
 ```
@@ -180,12 +180,12 @@ These are **as important as the edges themselves**. They prevent false diagnoses
 
 d-separation is Pearl's mathematical criterion for **conditional independence**. It proves when we can safely ignore noise in measurements.
 
-### Validation Results: ✓ All Critical Assumptions Pass
+### Validation Results: [OK] All Critical Assumptions Pass
 
 **Test 1: Solar noise ignored when battery stable**
 ```
 Claim: solar_degradation ⫫ bus_voltage | battery_state
-Result: ✓ PASS (d-separated)
+Result: [OK] PASS (d-separated)
 
 Implication:
   If solar power fluctuates ±15% during eclipse
@@ -197,7 +197,7 @@ Implication:
 **Test 2: Battery aging vs. thermal distinguishable**
 ```
 Claim: battery_aging ⫫ battery_temp | battery_efficiency
-Result: ✓ PASS (d-separated)
+Result: [OK] PASS (d-separated)
 
 Implication:
   Low voltage + normal temperature → likely aging
@@ -208,7 +208,7 @@ Implication:
 **Test 3: Payload causally isolated**
 ```
 Claim: payload_radiator_degradation ⫫ bus_voltage
-Result: ✓ PASS (d-separated, no paths exist)
+Result: [OK] PASS (d-separated, no paths exist)
 
 Implication:
   Payload overheating doesn't explain power system failures
@@ -218,7 +218,7 @@ Implication:
 **Test 4: Sensor bias identifiable**
 ```
 Claim: sensor_bias ⫫ battery_state
-Result: ✓ PASS (d-separated)
+Result: [OK] PASS (d-separated)
 
 Implication:
   Measurement drift doesn't change real battery state
@@ -231,12 +231,12 @@ Implication:
 ================================================================================
 ASSUMPTION VALIDATION
 ================================================================================
-  solar_mediated_by_battery                ✓ VALID
-  aging_distinct_from_thermal              ✓ VALID
-  payload_isolated                         ✓ VALID
-  sensor_bias_identifiable                 ✓ VALID
+  solar_mediated_by_battery                [OK] VALID
+  aging_distinct_from_thermal              [OK] VALID
+  payload_isolated                         [OK] VALID
+  sensor_bias_identifiable                 [OK] VALID
 
-✓ All causal assumptions validated!
+[OK] All causal assumptions validated!
   Aethelix can safely use d-separation for inference.
 ================================================================================
 ```
@@ -256,7 +256,7 @@ ASSUMPTION VALIDATION
 
 ```
 ROOT CAUSE:
-  ✗ solar_degradation
+  [X] solar_degradation
     └─ Panel deployment anomaly (mechanical jam)
 
 INTERMEDIATE PROPAGATION:
@@ -294,9 +294,9 @@ OBSERVABLES (MEASURED):
 2. **Trace Back to Root Causes**
    ```
    Paths found from observables back to roots:
-   ├─ battery_charge ← battery_state ← solar_input ← solar_degradation ✓
-   ├─ bus_voltage ← bus_regulation ← battery_state ← solar_degradation ✓
-   └─ battery_temp ← battery_state ← solar_degradation ✓
+   ├─ battery_charge ← battery_state ← solar_input ← solar_degradation [OK]
+   ├─ bus_voltage ← bus_regulation ← battery_state ← solar_degradation [OK]
+   └─ battery_temp ← battery_state ← solar_degradation [OK]
    
    Result: All three observables trace back to solar_degradation
    ```
@@ -329,7 +329,7 @@ OBSERVABLES (MEASURED):
 
 **Aethelix (Causal Inference):**
 ```
-T+36 seconds:  ✓ Solar degradation detected
+T+36 seconds:  [OK] Solar degradation detected
                Pattern: solar_input drop → battery_state drop → 
                         voltage regulation failure + thermal stress
                Confidence: 100% (by this point)
@@ -337,8 +337,8 @@ T+36 seconds:  ✓ Solar degradation detected
 
 **Traditional Thresholds:**
 ```
-T+180+ seconds: ⚠ "Battery charge low" alarm
-                ⚠ "Bus voltage dropped" alarm
+T+180+ seconds: [WARNING] "Battery charge low" alarm
+                [WARNING] "Bus voltage dropped" alarm
                 → No root cause diagnosis
                 → No insight into what failed
 ```
@@ -354,11 +354,11 @@ Could have: Prevented cascading failure, saved mission
 
 The DAG structure ensures:
 
-✓ **Solar → Battery → Voltage**: Linear causation (not correlated)
-✓ **Battery mediation**: Solar doesn't directly affect voltage (d-separation blocks it)
-✓ **Multiple observables**: Charge, voltage, temp all confirm same cause
-✓ **Mechanism explanation**: Can explain WHY each observable deviates
-✓ **Reproducibility**: Same graph → same diagnosis (deterministic)
+- **Solar → Battery → Voltage**: Linear causation (not correlated)
+- **Battery mediation**: Solar doesn't directly affect voltage (d-separation blocks it)
+- **Multiple observables**: Charge, voltage, temp all confirm same cause
+- **Mechanism explanation**: Can explain WHY each observable deviates
+- **Reproducibility**: Same graph → same diagnosis (deterministic)
 
 ---
 
@@ -378,21 +378,21 @@ The DAG structure ensures:
 
 ### What Makes It Causal Inference
 
-✓ **Explicit DAG**: Every relationship documented, no hidden parameters
-✓ **Directional**: Arrows mean A→B (causation), not A↔B (correlation)
-✓ **Mechanism-based**: Each edge explains WHY it exists
-✓ **d-Separation**: Mathematical proof of independence assumptions
-✓ **Reproducible**: Same graph → same results, deterministic
-✓ **Generalizable**: Structure works for new satellites, new failures
-✓ **Transparent**: Can explain every diagnosis with causal path
+- **Explicit DAG**: Every relationship documented, no hidden parameters
+- **Directional**: Arrows mean A→B (causation), not A↔B (correlation)
+- **Mechanism-based**: Each edge explains WHY it exists
+- **d-Separation**: Mathematical proof of independence assumptions
+- **Reproducible**: Same graph → same results, deterministic
+- **Generalizable**: Structure works for new satellites, new failures
+- **Transparent**: Can explain every diagnosis with causal path
 
 ### What It's NOT
 
-❌ **Not Black Box**: Every node and edge is visible and explained
-❌ **Not Pattern Matching**: Causal structure, not instance-based
-❌ **Not Statistical Learning**: Domain knowledge, not trained on data
-❌ **Not Correlation-based**: Distinguishes causation from spurious correlation
-❌ **Not Opaque**: Can show the causal reasoning behind every conclusion
+**Not Black Box**: Every node and edge is visible and explained
+**Not Pattern Matching**: Causal structure, not instance-based
+**Not Statistical Learning**: Domain knowledge, not trained on data
+**Not Correlation-based**: Distinguishes causation from spurious correlation
+**Not Opaque**: Can show the causal reasoning behind every conclusion
 
 ---
 
@@ -448,11 +448,11 @@ python causal_graph/graph_definition.py
 
 ```
 d_separation.py output:
-  ✓ All causal assumptions validated!
+  [OK] All causal assumptions validated!
   
 gsat6a forensics output:
-  ✓ CAUSAL INFERENCE: Solar degradation detected (T+0 seconds)
-  ✓ FAILURE CASCADE ANALYSIS: Shows root cause propagation
+  [OK] CAUSAL INFERENCE: Solar degradation detected (T+0 seconds)
+  [OK] FAILURE CASCADE ANALYSIS: Shows root cause propagation
 ```
 
 ---
@@ -475,7 +475,7 @@ This demonstration proves:
 
 ---
 
-## 🚀 Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
+## Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
 
 This documentation page has been updated to reflect Aethelix v2.0 capabilities, incorporating empirical flight validation against **European Space Agency (ESA)** anomaly datasets and publication-ready network visualization engines:
 

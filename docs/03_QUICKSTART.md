@@ -336,7 +336,7 @@ See [Installation Troubleshooting](02_INSTALLATION.md#troubleshooting-installati
 
 ---
 
-## 🚀 Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
+## Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
 
 This documentation page has been updated to reflect Aethelix v2.0 capabilities, incorporating empirical flight validation against **European Space Agency (ESA)** anomaly datasets and publication-ready network visualization engines:
 

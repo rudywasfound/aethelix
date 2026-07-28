@@ -135,15 +135,15 @@ For real-time use with frequent dropouts, FFI bindings recommended.
 
 ## Safety & Correctness
 
-✓ Type-safe matrix operations (nalgebra)
-✓ Bounds checking on all physical quantities
-✓ Covariance matrices guaranteed positive-definite
-✓ Numerical stability through symmetric updates
-✓ Deterministic (seeded) for reproducible tests
+[OK] Type-safe matrix operations (nalgebra)
+[OK] Bounds checking on all physical quantities
+[OK] Covariance matrices guaranteed positive-definite
+[OK] Numerical stability through symmetric updates
+[OK] Deterministic (seeded) for reproducible tests
 
 ---
 
-## 🚀 Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
+## Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
 
 This documentation page has been updated to reflect Aethelix v2.0 capabilities, incorporating empirical flight validation against **European Space Agency (ESA)** anomaly datasets and publication-ready network visualization engines:
 

@@ -50,12 +50,12 @@ The GSAT-6A simulation and forensic analysis have been refactored to separate **
 
 ## Key Benefits
 
-✓ **Data-driven output**: Text and graphs generated from actual measurements  
-✓ **Separation of concerns**: Simulation ≠ presentation  
-✓ **Extensible**: Add new analysis types without modifying simulation  
-✓ **Consistent**: All outputs follow same data patterns  
-✓ **Testable**: Framework can be tested independently  
-✓ **Maintainable**: Change output format in one place  
+- **Data-driven output**: Text and graphs generated from actual measurements  
+- **Separation of concerns**: Simulation ≠ presentation  
+- **Extensible**: Add new analysis types without modifying simulation  
+- **Consistent**: All outputs follow same data patterns  
+- **Testable**: Framework can be tested independently  
+- **Maintainable**: Change output format in one place  
 
 ## Generated Outputs
 
@@ -104,8 +104,8 @@ Text Output + Graphs
 
 ### Timeline Event
 ```
-🔴 T+    0.0s [Power       ] Solar degradation detected (100%)
-⚠ T+    0.0s [Power       ] Solar Power = 372W (24.9% drop)
+[CRITICAL] T+    0.0s [Power       ] Solar degradation detected (100%)
+[WARNING] T+    0.0s [Power       ] Solar Power = 372W (24.9% drop)
 ```
 
 ### Telemetry Deviation
@@ -125,16 +125,16 @@ before cascade failure.
 
 ## Files Modified
 
-- `forensics.py` - Removed hardcoded output, uses frameworks ✓
-- `live_simulation.py` - Removed hardcoded output, uses frameworks ✓
-- `mission_analysis.py` - Removed hardcoded visualization code, uses frameworks ✓
-- `live_simulation_main.py` - Added graph generation call ✓
+- `forensics.py` - Removed hardcoded output, uses frameworks [OK]
+- `live_simulation.py` - Removed hardcoded output, uses frameworks [OK]
+- `mission_analysis.py` - Removed hardcoded visualization code, uses frameworks [OK]
+- `live_simulation_main.py` - Added graph generation call [OK]
 
 ## Files Created
 
-- `timeline.py` - Event timeline framework ✓
-- `findings.py` - Analysis findings framework ✓
-- `visualizer.py` - Graph generation framework ✓
+- `timeline.py` - Event timeline framework [OK]
+- `findings.py` - Analysis findings framework [OK]
+- `visualizer.py` - Graph generation framework [OK]
 
 ## Architecture Summary
 
@@ -159,7 +159,7 @@ mission_analysis.py
 
 ---
 
-## 🚀 Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
+## Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
 
 This documentation page has been updated to reflect Aethelix v2.0 capabilities, incorporating empirical flight validation against **European Space Agency (ESA)** anomaly datasets and publication-ready network visualization engines:
 

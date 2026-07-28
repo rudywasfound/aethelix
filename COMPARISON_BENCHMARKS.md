@@ -33,7 +33,7 @@ LSTM's home turf. The comparison below is honest about this.
 
 ---
 
-## 📊 NASA SMAP / MSL Benchmark
+## NASA SMAP / MSL Benchmark
 
 ### Evaluation Protocol (sequence-level, matching Hundman et al. 2018)
 
@@ -75,7 +75,7 @@ causal explainability on every alarm.
 
 ---
 
-## 🛰️ ESA Anomaly Datasets Benchmark (OPS-SAT & ESA-ADB)
+## ESA Anomaly Datasets Benchmark (OPS-SAT & ESA-ADB)
 
 ### 1. ESA OPS-SAT (OPSSAT-AD Real Flight Telemetry)
 Evaluated on European Space Agency flight data featuring ADCS reaction wheel magnetic interference and magnetometer attitude spikes. Aethelix uses **Subsystem-Aware Persistence Filtering** ($N=15$ on noisy Magnetometers, $N=3$ on clean Photo Diodes) to achieve parity with deep learning autoencoders without training delays:
@@ -99,7 +99,7 @@ Evaluated across satellite subsystems subject to 90-minute orbital day/night the
 
 ---
 
-## 🔬 Sub-threshold Fault Detection (5–12% Severity)
+## Sub-threshold Fault Detection (5–12% Severity)
 
 Most satellite failures begin as subtle drifts below standard 15% alarm
 thresholds. This benchmark measures whether Aethelix can detect them before
@@ -130,7 +130,7 @@ multi-channel anomaly patterns, enabling detection below the threshold.
 
 ---
 
-## ⏱️ Detection Lead-Time Benchmark
+## Detection Lead-Time Benchmark
 
 ### Definition (`scripts/streaming_benchmark.py`)
 
@@ -180,7 +180,7 @@ advantage derives from learned prediction rather than causal graphs.
 
 ---
 
-## 🛡️ Reliability & Robustness
+## Reliability & Robustness
 
 ### Eclipse Awareness (False Positive Suppression)
 
@@ -203,7 +203,7 @@ Aethelix distinguishes a sensor failure from a physical system failure:
 
 ---
 
-## 🏛️ Standards Alignment
+## ️ Standards Alignment
 
 Aethelix diagnostic outputs are mapped to established aerospace standards:
 
@@ -216,16 +216,16 @@ Aethelix diagnostic outputs are mapped to established aerospace standards:
 
 | Scenario | Aethelix | LSTM | Threshold |
 | :--- | :--- | :--- | :--- |
-| Zero-shot deployment | ✅ **Yes** | ❌ Needs training | ✅ Yes |
-| Causal explanation | ✅ **Full path** | ❌ None | ❌ Alert only |
-| Sub-threshold faults | ✅ **Detects** | Partial | ❌ Misses by design |
-| Raw F1 on SMAP/MSL | Lower than LSTM | ✅ ~85% | ~37% |
-| Eclipse false positives | ✅ **Zero** | Moderate | High |
-| Real-time latency | ✅ **<1 ms** | 50–200 ms | <1 ms |
+| Zero-shot deployment | **Yes** | Needs training | Yes |
+| Causal explanation | **Full path** | None | Alert only |
+| Sub-threshold faults | **Detects** | Partial | Misses by design |
+| Raw F1 on SMAP/MSL | Lower than LSTM | ~85% | ~37% |
+| Eclipse false positives | **Zero** | Moderate | High |
+| Real-time latency | **<1 ms** | 50–200 ms | <1 ms |
 
 ---
 
-## 🚀 Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
+## Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
 
 This documentation page has been updated to reflect Aethelix v2.0 capabilities, incorporating empirical flight validation against **European Space Agency (ESA)** anomaly datasets and publication-ready network visualization engines:
 

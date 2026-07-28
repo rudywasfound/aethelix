@@ -220,9 +220,9 @@ Updated `visualizer.py` to intelligently render available data:
 
 ### Example Behavior
 **Mission Analysis Output** (typical case):
-- Causal Inference detects at T+36s ✓ (shown as green bar)
-- Threshold-Based never triggers ✗ (not shown in bar chart)
-- Analysis summary explains: "✓ Causal Inference: T+36.0s" + "✓ Threshold-Based: Not triggered"
+- Causal Inference detects at T+36s [OK] (shown as green bar)
+- Threshold-Based never triggers [X] (not shown in bar chart)
+- Analysis summary explains: "[OK] Causal Inference: T+36.0s" + "[OK] Threshold-Based: Not triggered"
 - No lead time arrow (only one method detected)
 
 ---
@@ -259,7 +259,7 @@ Analysis: Automated Aethelix causal inference framework (refactored to framework
 
 ---
 
-## 🚀 Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
+## Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
 
 This documentation page has been updated to reflect Aethelix v2.0 capabilities, incorporating empirical flight validation against **European Space Agency (ESA)** anomaly datasets and publication-ready network visualization engines:
 
