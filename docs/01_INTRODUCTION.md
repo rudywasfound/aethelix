@@ -288,35 +288,34 @@ Each document is self-contained and can be read independently, but they're also 
 
 ---
 
-## Aethelix v2.0 (July 2026) — State-of-the-Art ESA & Causal DAG Updates
+## Empirical Flight Validation & DAG Layout Engine (v2.0)
 
-This documentation page has been updated to reflect Aethelix v2.0 capabilities, incorporating empirical flight validation against **European Space Agency (ESA)** anomaly datasets and publication-ready network visualization engines:
+This documentation page includes updates from the v2.0 evaluation suite, incorporating empirical validation on **European Space Agency (ESA)** flight telemetry and improved hierarchical network rendering:
 
-### 1. Empirical Validation on Real Flight Telemetry (ESA OPS-SAT & ESA-ADB)
-- **ESA OPS-SAT (OPSSAT-AD):** Aethelix achieves **78.3% F1 score** on ADCS magnetometer anomalies, matching deep LSTM autoencoders (78.0% F1) while training in seconds rather than days. Utilizes **Subsystem-Aware Persistence Filtering** ($N=15$ on noisy ADCS magnetometer channels, $N=3$ on photo diodes) to eliminate CubeSat sensor noise without sacrificing recall.
-- **ESA-ADB Multi-Mission:** Aethelix achieves **100.0% Precision, Recall, and F1** across all channels by implementing dynamic **Innovation Residuals ($\Delta x_t = x_t - x_{t-1}$)**. This rate-of-change formulation eliminates 90-minute orbital baseline drift (day/night thermal cycling) while instantly isolating transient fault spikes.
+### 1. Evaluation on ESA Flight Telemetry (OPS-SAT & ESA-ADB)
+- **ESA OPS-SAT (OPSSAT-AD):** Evaluated on ADCS reaction wheel magnetic interference and magnetometer attitude anomalies. By applying **subsystem-aware persistence filtering** ($N=15$ consecutive samples for noisy magnetometer channels, $N=3$ for clean optical sensors), Aethelix achieves a **78.3% F1 score**, comparable to deep LSTM autoencoder baselines (78.0% F1) without requiring historical model training.
+- **ESA-ADB Multi-Mission:** Evaluated on satellite telemetry subject to periodic orbital thermal variation. To prevent false alarms caused by 90-minute day/night baseline oscillations, the engine evaluates **innovation residuals ($\Delta x_t = x_t - x_{t-1}$)**. Decoupling slow orbital dynamics from step-change fault signatures isolates transient subsystem anomalies.
 
-### 2. Publication-Ready Uncluttered Causal DAG Engine
-- **Hierarchical Functional Corridors:** Our new visualization engine (`scripts/generate_dag_visuals.py`) renders 300 DPI network diagrams with strict vertical bounding (max $y=0.68$), guaranteeing zero collision with column headers ($y=0.87$).
-- **Bayesian Belief Intensity Glow:** Nodes feature multi-layered neon glow corresponding to real-time Bayesian posterior belief (e.g., **94% Belief** on `PCDU Regulator Failure` for GSAT-6A, **89% Belief** on `Reaction Wheel Magnetic Interference` for OPS-SAT). Active propagation pathways are highlighted in vibrant fiery orange (`#FF5500`).
+### 2. Hierarchical Causal DAG Rendering
+- **Bounded Functional Corridors:** The visualization script (`scripts/generate_dag_visuals.py`) enforces strict vertical coordinate bounding (maximum node altitude $y=0.68$), ensuring clean separation from structural layer labels ($y=0.87$).
+- **Normalized Ranking Score Visualization:** In accordance with project semantics, node color intensity maps directly to **normalized ranking scores** (e.g., **0.94 normalized score weight** for `PCDU Regulator Failure` on GSAT-6A; **0.89 normalized score weight** for `Reaction Wheel Magnetic Interference` on OPS-SAT). Active causal propagation paths connecting dominant root causes to observed telemetry deviations are highlighted along directed edges.
 
-### 3. Generated Visual Artifacts & Benchmark CLI
-All 6 high-resolution charts can be regenerated anytime using our CLI scripts:
+### 3. CLI Reproduction Commands
+Benchmark datasets and diagnostic charts can be generated locally using the standalone scripts:
 ```bash
-# Generate Uncluttered Causal DAGs with Intensity Glow
+# Render hierarchical causal DAGs with normalized score weighting
 python3 scripts/generate_dag_visuals.py
 
-# Generate Full ESA Validation & Comparison Suite
+# Generate empirical validation charts across ESA datasets
 python3 scripts/generate_validation_plots.py
 
-# Run ESA Benchmark Evaluations
+# Execute benchmark suite evaluation
 python3 scripts/esa_benchmark.py --dataset all
 ```
-Generated artifacts available in `docs/`:
-- `causal_dag_intensity_gsat6a.png` — Multi-subsystem power short & thermal cascade DAG.
-- `causal_dag_intensity_opssat.png` — ADCS magnetometer interference DAG.
-- `validation_signal_overlay.png` — Telemetry Z-score deviations with persistence thresholds.
-- `validation_confusion_matrix.png` — Performance comparison vs LSTMs and static thresholds.
-- `validation_subsystem_metrics.png` — Subsystem breakdown of precision, recall, and F1.
-- `validation_causal_attribution.png` — Bayesian root cause confidence ranking.
-
+Generated diagnostic charts in `docs/`:
+- `causal_dag_intensity_gsat6a.png` — Multi-subsystem causal DAG mapping normalized ranking scores.
+- `causal_dag_intensity_opssat.png` — ADCS magnetometer interference DAG structure.
+- `validation_signal_overlay.png` — Telemetry Z-score deviations and persistence window thresholds.
+- `validation_confusion_matrix.png` — Detection performance comparison against sequence-level baselines.
+- `validation_subsystem_metrics.png` — Subsystem-level precision, recall, and F1 evaluation.
+- `validation_causal_attribution.png` — Normalized root-cause score distribution across benchmark scenarios.
