@@ -15,7 +15,6 @@ def build_pdf():
     """Build the documentation PDF."""
     docs_dir = Path("docs")
 
-    # List of documents in order (excluding BUILD_PDF.md)
     documents = [
         "00_TABLE_OF_CONTENTS.md",
         "01_INTRODUCTION.md",
@@ -30,7 +29,6 @@ def build_pdf():
         "23_FAQ.md",
     ]
 
-    # Verify all files exist
     doc_paths = []
     for doc in documents:
         path = docs_dir / doc
@@ -48,7 +46,6 @@ def build_pdf():
     for path in doc_paths:
         print(f"   ✓ {Path(path).name}")
 
-    # Build PDF
     output_file = "aethelix_documentation.pdf"
     cmd = [
         "pandoc",
@@ -73,7 +70,6 @@ def build_pdf():
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         
-        # Check file size
         pdf_path = Path(output_file)
         if pdf_path.exists():
             size_mb = pdf_path.stat().st_size / (1024 * 1024)

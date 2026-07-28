@@ -39,10 +39,10 @@ from causal_graph.graph_definition import CausalGraph
 from causal_graph.stateful_ranking import StatefulRootCauseRanker
 from operational.anomaly_detector import SlidingWindowDetector
 
-CONFIDENCE_THRESHOLD = 40.0    # % — meaningful detection
-SAMPLE_RATE_HZ       = 0.1    # 1 sample / 10 seconds
+CONFIDENCE_THRESHOLD = 40.0
+SAMPLE_RATE_HZ       = 0.1
 FAULT_HOUR           = 6.0
-THRESHOLD_FRACTION   = 0.15   # 15% deviation = OOL alarm fires
+THRESHOLD_FRACTION   = 0.15
 
 
 def _nominal_solar_mean(sim: PowerSimulator) -> float:
@@ -66,13 +66,13 @@ def run_lead_time_benchmark(num_scenarios: int = 50, seed: int = 42):
     graph      = CausalGraph()
     severities = np.random.uniform(0.15, 0.40, num_scenarios)
 
-    lead_times_s = []    # seconds Aethelix fires before threshold
+    lead_times_s = []
     aethelix_miss = 0
     threshold_miss = 0
 
     for i in range(num_scenarios):
         severity = severities[i]
-        factor   = 1.0 - severity  # e.g. 0.75 for 25% loss
+        factor   = 1.0 - severity
 
         sim      = PowerSimulator(duration_hours=24, sampling_rate_hz=SAMPLE_RATE_HZ)
         nom_mean = _nominal_solar_mean(sim)
@@ -94,7 +94,6 @@ def run_lead_time_benchmark(num_scenarios: int = 50, seed: int = 42):
         for t in range(len(degraded.solar_input)):
             solar_val = float(degraded.solar_input[t])
 
-            # Threshold alarm: fires when deviation > 15% from nominal mean
             if t_threshold is None and t >= fault_idx:
                 deviation = abs(solar_val - nom_mean) / nom_mean
                 if deviation > THRESHOLD_FRACTION:
@@ -119,15 +118,14 @@ def run_lead_time_benchmark(num_scenarios: int = 50, seed: int = 42):
             if t_aethelix is not None and t_threshold is not None:
                 break
 
-        # Convert sample indices to seconds
-        dt_per_sample = 1.0 / SAMPLE_RATE_HZ  # = 10 s
+        dt_per_sample = 1.0 / SAMPLE_RATE_HZ
 
         if t_aethelix is None:
             aethelix_miss += 1
             lead_s = None
         elif t_threshold is None:
             threshold_miss += 1
-            lead_s = None  # handled separately
+            lead_s = None
         else:
             lead_s = (t_threshold - t_aethelix) * dt_per_sample
             lead_times_s.append(lead_s)

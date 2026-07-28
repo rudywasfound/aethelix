@@ -21,20 +21,18 @@ class TestPowerSimulator(unittest.TestCase):
         """Test nominal (healthy) scenario generates valid telemetry."""
         telemetry = self.sim.run_nominal()
 
-        # Check shapes
         self.assertEqual(len(telemetry.solar_input), self.sim.num_samples)
         self.assertEqual(len(telemetry.battery_voltage), self.sim.num_samples)
         self.assertEqual(len(telemetry.battery_charge), self.sim.num_samples)
         self.assertEqual(len(telemetry.bus_voltage), self.sim.num_samples)
 
-        # Check value ranges
         self.assertTrue(np.all(telemetry.solar_input >= 0))
-        self.assertTrue(np.all(telemetry.solar_input <= 550))  # <= base_power * 1.1 with noise
+        self.assertTrue(np.all(telemetry.solar_input <= 550))
 
-        self.assertTrue(np.all(telemetry.battery_charge >= 20))  # Protected minimum
+        self.assertTrue(np.all(telemetry.battery_charge >= 20))
         self.assertTrue(np.all(telemetry.battery_charge <= 100))
 
-        self.assertTrue(np.all(telemetry.battery_voltage >= 20))  # Should stay above ~22V
+        self.assertTrue(np.all(telemetry.battery_voltage >= 20))
         self.assertTrue(np.all(telemetry.battery_voltage <= 30))
 
         self.assertTrue(np.all(telemetry.bus_voltage >= 9.5))
@@ -51,12 +49,10 @@ class TestPowerSimulator(unittest.TestCase):
 
         self.assertEqual(len(telemetry.solar_input), self.sim.num_samples)
 
-        # After degradation start, solar should be lower
         degrad_start_idx = int(3 * 3600 * self.sim.sampling_rate_hz)
         pre_degrad_solar = telemetry.solar_input[:degrad_start_idx].mean()
         post_degrad_solar = telemetry.solar_input[degrad_start_idx:].mean()
 
-        # Solar should degrade
         self.assertLess(post_degrad_solar, pre_degrad_solar * 0.8)
 
     def test_solar_input_ranges(self):
@@ -71,19 +67,16 @@ class TestPowerSimulator(unittest.TestCase):
         """Test battery charge degrades under efficiency loss."""
         solar_input = self.sim.simulate_solar_input(base_power=400)
 
-        # Nominal efficiency
         charge_nom, _ = self.sim.simulate_battery_dynamics(
             solar_input, efficiency_degradation_start_hour=None
         )
 
-        # With degradation
         charge_deg, _ = self.sim.simulate_battery_dynamics(
             solar_input, efficiency_degradation_start_hour=6, efficiency_factor=0.7
         )
 
         degrad_idx = int(6 * 3600 * self.sim.sampling_rate_hz)
 
-        # After degradation, charge should be lower (battery not charging as well)
         charge_diff = charge_nom[degrad_idx:].mean() - charge_deg[degrad_idx:].mean()
         self.assertGreater(charge_diff, 0, "Degraded charge should be lower")
 

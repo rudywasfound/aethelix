@@ -17,7 +17,6 @@ def test_chain_ate():
     graph.dag_meta = {}
     graph.rust_graph = None
     
-    # A -> B -> C
     graph.add_node("A", NodeType.ROOT_CAUSE, "Node A")
     graph.add_node("B", NodeType.INTERMEDIATE, "Node B")
     graph.add_node("C", NodeType.OBSERVABLE, "Node C")
@@ -25,19 +24,11 @@ def test_chain_ate():
     graph.add_edge("A", "B", weight=1.0)
     graph.add_edge("B", "C", weight=1.0)
     
-    # Configure SCM:
-    # A = N(0, 1)
-    # B = 0.8 * A + N(0, 0.5)
-    # C = 0.5 * B + N(0, 0.5)
     
     graph.set_structural_equation("A", coefficients={}, noise_std=1.0)
     graph.set_structural_equation("B", coefficients={"A": 0.8}, noise_std=0.5)
     graph.set_structural_equation("C", coefficients={"B": 0.5}, noise_std=0.5)
     
-    # Analytical ATE for do(A=1) vs do(A=0) on C
-    # E[C | do(A=1)] = 0.5 * E[B | do(A=1)] = 0.5 * 0.8 * 1 = 0.4
-    # E[C | do(A=0)] = 0
-    # True ATE = 0.4
     true_ate = 0.4
     
     estimated_ate = ate(graph, cause="A", effect="C", x0=0.0, x1=1.0, n_samples=50000)

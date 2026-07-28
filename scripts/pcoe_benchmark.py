@@ -27,8 +27,8 @@ Data sources (try in order):
 
 Usage:
     python scripts/pcoe_benchmark.py
-    python scripts/pcoe_benchmark.py --no-download   # synthetic only
-    python scripts/pcoe_benchmark.py --battery B0005  # single battery
+    python scripts/pcoe_benchmark.py --no-download
+    python scripts/pcoe_benchmark.py --battery B0005
 """
 
 import argparse
@@ -40,27 +40,22 @@ from pathlib import Path
 
 import numpy as np
 
-# Path setup 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from operational.anomaly_detector import CycleLevelDetector
 
-# Configuration
 DATA_DIR   = REPO_ROOT / "data" / "pcoe_battery"
 OUT_DIR    = REPO_ROOT / "output"
 
-NOMINAL_AH = 2.0    # Nominal capacity at beginning of life
-EOL_AH     = 1.4    # End-of-Life: 70% of nominal (NASA PCoE standard)
-WARN_AH    = 1.6    # Threshold baseline: 80% of nominal (NASA rule-based method)
+NOMINAL_AH = 2.0
+EOL_AH     = 1.4
+WARN_AH    = 1.6
 
-# Batteries in the benchmark suite
 ALL_BATTERIES = ["B0005", "B0006", "B0018", "B0025"]
 
-# Zenodo open-access CSV mirror (CSV conversions of the original MATLAB .mat files)
 ZENODO_BASE = "https://zenodo.org/record/3402516/files"
 
-# Dataset loader 
 
 def try_download(battery_id: str) -> bool:
     """Attempt to download battery CSV from Zenodo. Returns True if successful."""
@@ -87,7 +82,6 @@ def load_csv(battery_id: str) -> dict | None:
         if not csv_path.exists():
             return None
         df = pd.read_csv(csv_path)
-        # The CSV groups discharge data by cycle
         cycles, caps, volts, temps = [], [], [], []
         for cycle, grp in df.groupby("cycle"):
             if "Capacity" not in grp.columns:
@@ -119,7 +113,7 @@ def synthetic_battery(battery_id: str, seed: int = 0) -> dict:
     """
     rng = np.random.default_rng(seed + sum(ord(c) for c in battery_id))
     num_cycles = 165
-    T = 80  # time samples per discharge curve
+    T = 80
 
     cycles, caps, volts, temps = [], [], [], []
     for k in range(1, num_cycles + 1):
@@ -128,11 +122,9 @@ def synthetic_battery(battery_id: str, seed: int = 0) -> dict:
         health = cap / NOMINAL_AH
 
         t_vec  = np.linspace(0, 1, T)
-        # Voltage: plateau sags and droop steepens as health declines
         v_plate = 3.6 * health + 3.0 * (1 - health)
         v_droop = (1 - health) * 0.5 * t_vec ** 1.5
         voltage = np.clip(v_plate - v_droop + rng.normal(0, 0.01, T), 2.5, 4.2)
-        # Temperature: rises with internal resistance
         temp = 24 + (1 - health) * 7 + 1.5 * t_vec + rng.normal(0, 0.2, T)
 
         cycles.append(k)
@@ -144,7 +136,6 @@ def synthetic_battery(battery_id: str, seed: int = 0) -> dict:
             "volts": volts, "temps": temps}
 
 
-# Detection methods
 
 def threshold_detection_cycle(caps: np.ndarray) -> int:
     """NASA threshold method: fires first cycle where capacity < WARN_AH (80%)."""
@@ -198,15 +189,13 @@ def aethelix_detection_cycle(data: dict) -> int:
         if is_alarming:
             return detector.first_alarm_cycle
 
-    return len(volts) - 1  # Degradation not detected before end of dataset
+    return len(volts) - 1
 
 
-# Per-battery benchmark 
 
 def benchmark_battery(battery_id: str, seed: int, allow_download: bool) -> dict:
     print(f"\n  ── {battery_id} ──")
 
-    # Load data
     source = "NASA PCoE CSV"
     data   = None
     if allow_download:
@@ -250,7 +239,6 @@ def benchmark_battery(battery_id: str, seed: int, allow_download: bool) -> dict:
     return result
 
 
-# Entry point
 
 def run_pcoe_benchmark(batteries=None, allow_download=True):
     batteries = batteries or ALL_BATTERIES
@@ -267,7 +255,6 @@ def run_pcoe_benchmark(batteries=None, allow_download=True):
     for i, bat in enumerate(batteries):
         results.append(benchmark_battery(bat, seed=42 + i, allow_download=allow_download))
 
-    # Summary table
     print()
     print("=" * 70)
     print("  Summary: Detection Lead Time vs NASA Threshold Baseline")
@@ -300,7 +287,6 @@ def run_pcoe_benchmark(batteries=None, allow_download=True):
     print("  4. LEAN      — <8 KB RAM, runs live on LEON3 OBC flash at 50 MHz")
     print("=" * 70)
 
-    # Persist results
     OUT_DIR.mkdir(exist_ok=True)
     out_path = OUT_DIR / "pcoe_benchmark_results.json"
     with open(out_path, "w") as f:

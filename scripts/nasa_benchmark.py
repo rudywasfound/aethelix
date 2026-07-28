@@ -33,12 +33,11 @@ from operational.anomaly_detector import SlidingWindowDetector
 DATA_DIR    = "smap&msl_dataset/data/data/test"
 LABELS_PATH = "smap&msl_dataset/labeled_anomalies.csv"
 
-# Baselines from published literature
 LSTM_PRECISION = 0.851
 LSTM_RECALL    = 0.853
 LSTM_F1        = 0.852
 
-THRESHOLD_PRECISION = 0.28   # typical OOL fixed-limit precision on SMAP/MSL
+THRESHOLD_PRECISION = 0.28
 THRESHOLD_RECALL    = 0.53
 THRESHOLD_F1        = 0.37
 

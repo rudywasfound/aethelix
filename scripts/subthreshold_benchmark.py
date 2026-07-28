@@ -32,10 +32,8 @@ from causal_graph.graph_definition import CausalGraph
 from causal_graph.stateful_ranking import StatefulRootCauseRanker
 from operational.anomaly_detector import SlidingWindowDetector
 
-# Confidence threshold — must exceed this to count as a real detection
-CONFIDENCE_THRESHOLD = 40.0   # percent, meaningful (not trivial)
-# How many samples post-fault-onset is still a "timely" detection?
-DETECTION_WINDOW_SAMPLES = 720  # = 2 hours at 10-second sampling
+CONFIDENCE_THRESHOLD = 40.0
+DETECTION_WINDOW_SAMPLES = 720
 
 
 def run_subthreshold_benchmark(num_scenarios: int = 100, seed: int = 42):
@@ -52,7 +50,7 @@ def run_subthreshold_benchmark(num_scenarios: int = 100, seed: int = 42):
     severities = np.random.uniform(0.05, 0.12, num_scenarios)
 
     detected_count  = 0
-    detection_leads = []  # samples from fault onset to first correct detection
+    detection_leads = []
 
     for i in range(num_scenarios):
         severity = severities[i]
@@ -61,8 +59,8 @@ def run_subthreshold_benchmark(num_scenarios: int = 100, seed: int = 42):
         nominal = sim.run_nominal()
         degraded = sim.run_degraded(
             solar_degradation_hour=6.0,
-            solar_factor=1.0 - severity,   # e.g. 0.92 = 8% loss
-            battery_degradation_hour=9999,  # no battery fault
+            solar_factor=1.0 - severity,
+            battery_degradation_hour=9999,
         )
 
         detector = SlidingWindowDetector(p_threshold=0.005, persist=4)
@@ -100,7 +98,6 @@ def run_subthreshold_benchmark(num_scenarios: int = 100, seed: int = 42):
             print(f"  Scenario {i+1:3d}/{num_scenarios} | "
                   f"Detected so far: {detected_count}")
 
-    # False-positive rate (clean data)
     fp_count = 0
     for _ in range(30):
         sim      = PowerSimulator(duration_hours=24, sampling_rate_hz=0.1)
@@ -121,7 +118,7 @@ def run_subthreshold_benchmark(num_scenarios: int = 100, seed: int = 42):
                 hyps = ranker.analyze_stream(an)
                 if hyps and hyps[0].confidence >= CONFIDENCE_THRESHOLD:
                     fp_count += 1
-                    break  # one FP event per scenario
+                    break
 
     aethelix_rate   = detected_count / num_scenarios * 100
     fp_rate         = fp_count / 30 * 100

@@ -35,7 +35,6 @@ class CCSDSParser:
         self.packet_buffer = b""
 
     def parse_header(self, raw_bytes: bytes) -> CCSDSPrimaryHeader:
-        # Fallback to Python if Rust is not available
         if not RUST_CORE_AVAILABLE:
             b0, b1 = raw_bytes[0], raw_bytes[1]
             apid = ((b0 & 0x07) << 8) | b1
@@ -44,8 +43,6 @@ class CCSDSParser:
             length = struct.unpack(">H", raw_bytes[4:6])[0] + 1
             return CCSDSPrimaryHeader(0, 0, False, apid, 0, seq_count, length)
         
-        # In Rust mode, we don't usually call parse_header standalone,
-        # but for compatibility:
         self.rust_parser.push_bytes(list(raw_bytes))
         p = self.rust_parser.next_packet()
         if not p:
@@ -61,7 +58,6 @@ class CCSDSParser:
                 if not p: break
                 yield p.apid, bytes(p.payload)
         else:
-            # Legacy Python streaming logic
             self.packet_buffer += data
             while len(self.packet_buffer) >= self.HEADER_SIZE:
                 h = self.parse_header(self.packet_buffer)
@@ -78,14 +74,9 @@ class CCSDSParser:
         In a real ISRO mission, this would look up the Packet ID (PID)
         in a mission-specific XML/CSV database.
         """
-        # Example Mapping for Aethelix Demo:
-        # APID 0x100 -> Power Subsystem
-        # APID 0x200 -> Thermal Subsystem
-        # APID 0x300 -> ADCS Subsystem
         
         data = {}
-        if apid == 0x100: # Power
-            # Assuming floating point values (4 bytes each)
+        if apid == 0x100:
             vals = struct.unpack(">ffff", payload[:16])
             data = {
                 "solar_input": vals[0],
@@ -93,7 +84,7 @@ class CCSDSParser:
                 "battery_charge": vals[2],
                 "bus_voltage": vals[3]
             }
-        elif apid == 0x300: # ADCS
+        elif apid == 0x300:
             vals = struct.unpack(">ffff", payload[:16])
             data = {
                 "pointing_error": vals[0],

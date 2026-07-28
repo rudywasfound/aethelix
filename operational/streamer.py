@@ -28,8 +28,6 @@ class TelemetryStreamer:
         else:
             raise ValueError("Must provide either csv_path or df")
         
-        # Calculate synthetic orbital phase based on timestamps.
-        # Assuming timestamp epoch corresponds to phase 0.
         timestamps_s = self.df['timestamp'].astype('int64') // 10**9
         epoch = timestamps_s.iloc[0] if len(timestamps_s) > 0 else 0
         self.df['orbital_phase'] = ((timestamps_s - epoch) % self.orbit_duration_s) / self.orbit_duration_s
@@ -52,7 +50,6 @@ class TelemetryStreamer:
         if len(self.df) == 0:
             return
 
-        # Keep track of simulation time
         start_real_time = time.time()
         start_sim_time = self.df.iloc[0]['timestamp'].timestamp()
 
@@ -71,8 +68,6 @@ class TelemetryStreamer:
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
-            # push as a dict
             self.queue.put(row.to_dict())
 
-        # Sentinel to indicate end of stream
         self.queue.put(None)

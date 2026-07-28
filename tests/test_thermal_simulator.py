@@ -13,7 +13,6 @@ class TestThermalSimulator(unittest.TestCase):
         self.power_sim = PowerSimulator(duration_hours=12)
         self.thermal_sim = ThermalSimulator(duration_hours=12)
         
-        # Generate power telemetry for use in thermal tests
         self.power_nominal = self.power_sim.run_nominal()
 
     def test_thermal_simulator_initialization(self):
@@ -30,15 +29,13 @@ class TestThermalSimulator(unittest.TestCase):
             self.power_nominal.battery_voltage,
         )
 
-        # Check shapes
         self.assertEqual(len(telemetry.battery_temp), self.thermal_sim.num_samples)
         self.assertEqual(len(telemetry.solar_panel_temp), self.thermal_sim.num_samples)
         self.assertEqual(len(telemetry.payload_temp), self.thermal_sim.num_samples)
         self.assertEqual(len(telemetry.bus_current), self.thermal_sim.num_samples)
 
-        # Check value ranges
-        self.assertTrue(np.all(telemetry.battery_temp >= 20))  # Above ambient
-        self.assertTrue(np.all(telemetry.battery_temp <= 65))  # Well below max
+        self.assertTrue(np.all(telemetry.battery_temp >= 20))
+        self.assertTrue(np.all(telemetry.battery_temp <= 65))
 
         self.assertTrue(np.all(telemetry.solar_panel_temp >= 0))
         self.assertTrue(np.all(telemetry.solar_panel_temp <= 70))
@@ -65,21 +62,18 @@ class TestThermalSimulator(unittest.TestCase):
         """Test solar panel temperature varies with eclipse cycles."""
         temp = self.thermal_sim.simulate_solar_panel_temp(eclipse_frequency_hours=1.5)
 
-        # Should have significant variation (day-night cycles)
         temp_range = np.max(temp) - np.min(temp)
         self.assertGreater(temp_range, 10, "Panel temperature should vary with eclipse cycle")
 
     def test_battery_temp_increases_with_stress(self):
         """Test battery temperature responds to charge/discharge stress."""
-        # Create power profile with high discharge (low charge)
-        charge_profile = np.linspace(80, 20, self.thermal_sim.num_samples)  # Dropping charge
-        solar_high = np.full(self.thermal_sim.num_samples, 400.0)  # High solar input
+        charge_profile = np.linspace(80, 20, self.thermal_sim.num_samples)
+        solar_high = np.full(self.thermal_sim.num_samples, 400.0)
 
         temp = self.thermal_sim.simulate_battery_temp(
             solar_high, charge_profile, degradation_start_hour=None
         )
 
-        # Temperature should rise as charge drops (stress increases)
         early_temp = np.mean(temp[:len(temp)//4])
         late_temp = np.mean(temp[3*len(temp)//4:])
 
@@ -98,7 +92,6 @@ class TestThermalSimulator(unittest.TestCase):
 
         degrad_idx = int(3 * 3600 * self.thermal_sim.sampling_rate_hz)
 
-        # After degradation, should be warmer
         pre_degrad_healthy = np.mean(temp_healthy[:degrad_idx])
         post_degrad_degraded = np.mean(temp_degraded[degrad_idx:])
 
@@ -121,12 +114,11 @@ class TestThermalSimulator(unittest.TestCase):
             solar_input,
             charge_profile,
             degradation_start_hour=3.0,
-            degradation_factor=0.3,  # Severe cooling failure
+            degradation_factor=0.3,
         )
 
         degrad_idx = int(3 * 3600 * self.thermal_sim.sampling_rate_hz)
 
-        # After degradation, degraded should be hotter
         pre_degrad_healthy = np.mean(temp_healthy[:degrad_idx])
         post_degrad_healthy = np.mean(temp_healthy[degrad_idx:])
         post_degrad_degraded = np.mean(temp_degraded[degrad_idx:])
@@ -143,14 +135,13 @@ class TestThermalSimulator(unittest.TestCase):
 
         temp = self.thermal_sim.simulate_payload_temp(voltage)
 
-        # Should stay within reasonable bounds
         self.assertTrue(np.all(temp >= 20), "Payload temp should be above ambient")
         self.assertTrue(np.all(temp <= 55), "Payload temp should be below max safe")
 
     def test_bus_current_increases_with_stress(self):
         """Test bus current reflects battery stress."""
-        charge_high = np.full(self.thermal_sim.num_samples, 90.0)  # Healthy charge
-        charge_low = np.full(self.thermal_sim.num_samples, 25.0)  # Stressed charge
+        charge_high = np.full(self.thermal_sim.num_samples, 90.0)
+        charge_low = np.full(self.thermal_sim.num_samples, 25.0)
 
         voltage = np.full(self.thermal_sim.num_samples, 26.0)
 
@@ -178,14 +169,12 @@ class TestThermalPowerIntegration(unittest.TestCase):
         power_nominal = power_sim.run_nominal()
         power_degraded = power_sim.run_degraded(solar_degradation_hour=2.0)
 
-        # Nominal thermal
         thermal_nominal = thermal_sim.run_nominal(
             power_nominal.solar_input,
             power_nominal.battery_charge,
             power_nominal.battery_voltage,
         )
 
-        # Degraded thermal
         thermal_degraded = thermal_sim.run_degraded(
             power_degraded.solar_input,
             power_degraded.battery_charge,
@@ -193,11 +182,9 @@ class TestThermalPowerIntegration(unittest.TestCase):
             battery_cooling_hour=2.5,
         )
 
-        # Both should have valid outputs
         self.assertEqual(len(thermal_nominal.battery_temp), thermal_sim.num_samples)
         self.assertEqual(len(thermal_degraded.battery_temp), thermal_sim.num_samples)
 
-        # Degraded should show higher temperatures (reduced solar + failed cooling)
         self.assertGreater(
             np.mean(thermal_degraded.battery_temp),
             np.mean(thermal_nominal.battery_temp),

@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-# Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from causal_graph.graph_definition import CausalGraph, NodeType
@@ -14,7 +13,6 @@ def test_dag_properties():
     graph = CausalGraph()
     print(f"--- Verifying DAG: {len(graph.nodes)} nodes, {len(graph.edges)} edges ---")
 
-    # 1. Cycle Detection (Must be a DAG)
     def has_cycle():
         visited = set()
         stack = set()
@@ -37,12 +35,10 @@ def test_dag_properties():
         raise AssertionError("CRITICAL: Causal Graph contains cycles. It must be a Directed Acyclic Graph (DAG).")
     print("[PASS] No cycles detected.")
 
-    # 2. Reachability (Every root cause must reach at least one observable)
     root_causes = graph.get_root_causes()
     observables = set(graph.get_observables())
     
     for root in root_causes:
-        # Simple BFS for reachability
         reached_observables = False
         todo = [root]
         seen = {root}
@@ -60,8 +56,6 @@ def test_dag_properties():
             raise AssertionError(f"CRITICAL: Root cause '{root}' is unreachable from any telemetry observable.")
     print("[PASS] All root causes have observable paths.")
 
-    # 3. Connectivity (All nodes must be part of the graph)
-    # Check if any nodes are isolated (no parents and no children)
     for name in graph.nodes:
         if not graph.get_parents(name) and not graph.get_children(name):
             raise AssertionError(f"WARNING: Isolated node detected: '{name}'")

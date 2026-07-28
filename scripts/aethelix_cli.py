@@ -8,7 +8,6 @@ import os
 import argparse
 from pathlib import Path
 
-# Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from causal_graph.dag_loader import load_dag, validate_schema, dump_dag, DAGLoadError
@@ -27,7 +26,6 @@ def validate_cmd(args):
         print(f"  Nodes: {len(graph.nodes)}")
         print(f"  Edges: {len(graph.edges)}")
         
-        # Count types
         from causal_graph.graph_definition import NodeType
         root_causes = sum(1 for n in graph.nodes.values() if n.node_type == NodeType.ROOT_CAUSE)
         intermediates = sum(1 for n in graph.nodes.values() if n.node_type == NodeType.INTERMEDIATE)
@@ -77,15 +75,12 @@ def main():
     parser = argparse.ArgumentParser(description="Aethelix Causal Inference Framework CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # validate command
     val_parser = subparsers.add_parser("validate", help="Validate a satellite DAG YAML/JSON config file")
     val_parser.add_argument("config_path", help="Path to the DAG configuration file")
     
-    # dump-gsat6a command
     dump_parser = subparsers.add_parser("dump-gsat6a", help="Dump the built-in GSAT-6A graph to a YAML file")
     dump_parser.add_argument("output_path", help="Target output path (e.g. configs/gsat6a.yaml)")
 
-    # run command
     run_parser = subparsers.add_parser("run", help="Load and print the structure of a DAG configuration")
     run_parser.add_argument("config_path", help="Path to the DAG configuration file")
 

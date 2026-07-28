@@ -1,0 +1,388 @@
+aethelix_dag_version: "1.0"
+
+satellite:
+  name: OPS-SAT
+  agency: ESA
+  orbit: LEO (515 km, sun-synchronous)
+  mission: In-orbit demonstration CubeSat (flying laboratory)
+  description: >
+    3U CubeSat launched Dec 2019 as ESA's first open-access satellite for
+    on-board experiments. This DAG models the ADCS sensor subsystem covered
+    by the OPSSAT-AD anomaly detection benchmark (Zenodo 10850228).
+    Channels: 3-axis magnetometer (CADC0872-0874) and 6 photo diode sun
+    sensors (CADC0884-0894).
+
+# ===========================================================================
+# NODES
+# ===========================================================================
+
+nodes:
+  # ── ROOT CAUSES ──────────────────────────────────────────────────────────
+  - id: magnetometer_bias
+    type: root_cause
+    description: >
+      Calibration drift in the 3-axis magnetometer due to thermal cycling,
+      electronics aging, or residual spacecraft magnetic dipole changes.
+    degradation_modes: [thermal_drift, electronics_aging, dipole_change]
+
+  - id: magnetometer_failure
+    type: root_cause
+    description: >
+      Hardware fault in one or more magnetometer axes (ADC failure, open
+      circuit, or stuck-at value).
+    degradation_modes: [adc_fault, open_circuit, stuck_at_value]
+
+  - id: photo_diode_degradation
+    type: root_cause
+    description: >
+      Gradual sensitivity loss in photo diode sun sensors from UV radiation
+      damage, semiconductor aging, or lens coating degradation.
+    degradation_modes: [uv_damage, semiconductor_aging, coating_loss]
+
+  - id: photo_diode_obstruction
+    type: root_cause
+    description: >
+      Partial or full physical blockage of one or more photo diode sensors
+      from deployment anomaly, debris, or thermal blanket displacement.
+    degradation_modes: [deployment_blockage, debris_obstruction, blanket_shift]
+
+  - id: adcs_controller_fault
+    type: root_cause
+    description: >
+      Software or hardware fault in the ADCS on-board controller affecting
+      sensor fusion, attitude determination, or actuator commands.
+    degradation_modes: [software_bug, processor_latchup, timing_fault]
+
+  - id: external_magnetic_disturbance
+    type: root_cause
+    description: >
+      Geomagnetic storm or solar flare event causing anomalous magnetic
+      field readings across all magnetometer axes simultaneously.
+    degradation_modes: [geomagnetic_storm, solar_particle_event]
+
+  - id: eclipse_transition
+    type: root_cause
+    description: >
+      Orbital transition between sunlit and eclipse phases causing expected
+      photo diode signal drop/rise and thermal transients on magnetometer.
+    degradation_modes: [sun_to_shadow, shadow_to_sun]
+
+  # ── INTERMEDIATES ────────────────────────────────────────────────────────
+  - id: magnetic_field_estimate
+    type: intermediate
+    description: >
+      Fused 3-axis magnetic field vector estimate used for attitude
+      determination and magnetorquer control.
+
+  - id: sun_vector_estimate
+    type: intermediate
+    description: >
+      Fused sun direction vector estimate from the 6 photo diode
+      sensor array. Used for coarse sun pointing and eclipse detection.
+
+  - id: attitude_determination_quality
+    type: intermediate
+    description: >
+      Overall quality of the attitude solution derived from magnetometer
+      and sun sensor fusion. Degradation in either sensor set propagates
+      through this node.
+
+  # ── OBSERVABLES (9 channels matching OPSSAT-AD) ─────────────────────────
+  # Magnetometer channels
+  - id: mag_x_measured
+    type: observable
+    description: "Magnetometer X-axis reading (CADC0872 / I_B_FB_MM_0)"
+
+  - id: mag_y_measured
+    type: observable
+    description: "Magnetometer Y-axis reading (CADC0873 / I_B_FB_MM_1)"
+
+  - id: mag_z_measured
+    type: observable
+    description: "Magnetometer Z-axis reading (CADC0874 / I_B_FB_MM_2)"
+
+  # Photo diode channels
+  - id: pd1_theta_measured
+    type: observable
+    description: "Photo diode 1 angle measurement (CADC0884 / I_PD1_THETA)"
+
+  - id: pd2_theta_measured
+    type: observable
+    description: "Photo diode 2 angle measurement (CADC0886 / I_PD2_THETA)"
+
+  - id: pd3_theta_measured
+    type: observable
+    description: "Photo diode 3 angle measurement (CADC0888 / I_PD3_THETA)"
+
+  - id: pd4_theta_measured
+    type: observable
+    description: "Photo diode 4 angle measurement (CADC0890 / I_PD4_THETA)"
+
+  - id: pd5_theta_measured
+    type: observable
+    description: "Photo diode 5 angle measurement (CADC0892 / I_PD5_THETA)"
+
+  - id: pd6_theta_measured
+    type: observable
+    description: "Photo diode 6 angle measurement (CADC0894 / I_PD6_THETA)"
+
+# ===========================================================================
+# EDGES
+# ===========================================================================
+
+edges:
+  # ── Magnetometer fault propagation ─────────────────────────────────────
+  - source: magnetometer_bias
+    target: magnetic_field_estimate
+    weight: 0.85
+    mechanism: >
+      Calibration drift introduces systematic offset in the estimated
+      magnetic field vector, degrading attitude determination accuracy.
+
+  - source: magnetometer_failure
+    target: magnetic_field_estimate
+    weight: 0.95
+    mechanism: >
+      Hardware fault on one axis corrupts the 3-axis vector estimate.
+      If stuck-at, the axis value becomes constant; if open-circuit,
+      it reads noise or zero.
+
+  - source: external_magnetic_disturbance
+    target: magnetic_field_estimate
+    weight: 0.90
+    mechanism: >
+      Geomagnetic storms cause large-amplitude field variations that
+      exceed the expected IGRF model residuals, appearing as anomalies
+      in all three magnetometer axes simultaneously.
+
+  # ── Photo diode fault propagation ──────────────────────────────────────
+  - source: photo_diode_degradation
+    target: sun_vector_estimate
+    weight: 0.80
+    mechanism: >
+      Reduced photo diode sensitivity biases the sun vector estimate,
+      especially when multiple sensors are affected asymmetrically.
+
+  - source: photo_diode_obstruction
+    target: sun_vector_estimate
+    weight: 0.92
+    mechanism: >
+      Physical blockage of one or more photo diodes causes sudden loss
+      of signal, corrupting the sun vector triangulation.
+
+  - source: eclipse_transition
+    target: sun_vector_estimate
+    weight: 0.75
+    mechanism: >
+      During eclipse entry/exit, all photo diodes see rapid signal
+      change. This is expected behavior but can trigger false anomaly
+      detection if not properly suppressed.
+
+  # ── ADCS controller fault propagation ──────────────────────────────────
+  - source: adcs_controller_fault
+    target: attitude_determination_quality
+    weight: 0.88
+    mechanism: >
+      Controller faults can corrupt the sensor fusion algorithm,
+      producing incorrect attitude estimates even with healthy sensors.
+
+  - source: adcs_controller_fault
+    target: magnetic_field_estimate
+    weight: 0.50
+    mechanism: >
+      Controller timing faults can cause magnetometer sampling at wrong
+      times, producing correlated errors across axes.
+
+  - source: adcs_controller_fault
+    target: sun_vector_estimate
+    weight: 0.50
+    mechanism: >
+      Controller faults can affect photo diode readout sequencing,
+      introducing systematic errors in the sun vector computation.
+
+  # ── Intermediate → Intermediate ────────────────────────────────────────
+  - source: magnetic_field_estimate
+    target: attitude_determination_quality
+    weight: 0.85
+    mechanism: >
+      Magnetometer data is a primary input to the attitude determination
+      Kalman filter; corrupted B-field degrades the solution.
+
+  - source: sun_vector_estimate
+    target: attitude_determination_quality
+    weight: 0.80
+    mechanism: >
+      Sun vector provides coarse absolute attitude reference; its loss
+      forces reliance on magnetometer-only determination (less accurate).
+
+  # ── Magnetometer → Observable edges ────────────────────────────────────
+  - source: magnetic_field_estimate
+    target: mag_x_measured
+    weight: 0.95
+    mechanism: Direct measurement of B-field X component via magnetometer ADC.
+
+  - source: magnetic_field_estimate
+    target: mag_y_measured
+    weight: 0.95
+    mechanism: Direct measurement of B-field Y component via magnetometer ADC.
+
+  - source: magnetic_field_estimate
+    target: mag_z_measured
+    weight: 0.95
+    mechanism: Direct measurement of B-field Z component via magnetometer ADC.
+
+  - source: magnetometer_failure
+    target: mag_x_measured
+    weight: 0.90
+    mechanism: >
+      Single-axis hardware failure directly affects the X-axis reading
+      (stuck-at, noise, or dropout).
+
+  - source: magnetometer_failure
+    target: mag_y_measured
+    weight: 0.90
+    mechanism: >
+      Single-axis hardware failure directly affects the Y-axis reading.
+
+  - source: magnetometer_failure
+    target: mag_z_measured
+    weight: 0.90
+    mechanism: >
+      Single-axis hardware failure directly affects the Z-axis reading.
+
+  # ── Sun vector → Photo diode observable edges ──────────────────────────
+  - source: sun_vector_estimate
+    target: pd1_theta_measured
+    weight: 0.90
+    mechanism: Photo diode 1 cosine response to sun angle.
+
+  - source: sun_vector_estimate
+    target: pd2_theta_measured
+    weight: 0.90
+    mechanism: Photo diode 2 cosine response to sun angle.
+
+  - source: sun_vector_estimate
+    target: pd3_theta_measured
+    weight: 0.90
+    mechanism: Photo diode 3 cosine response to sun angle.
+
+  - source: sun_vector_estimate
+    target: pd4_theta_measured
+    weight: 0.90
+    mechanism: Photo diode 4 cosine response to sun angle.
+
+  - source: sun_vector_estimate
+    target: pd5_theta_measured
+    weight: 0.90
+    mechanism: Photo diode 5 cosine response to sun angle.
+
+  - source: sun_vector_estimate
+    target: pd6_theta_measured
+    weight: 0.90
+    mechanism: Photo diode 6 cosine response to sun angle.
+
+  # ── Eclipse direct effect on photo diodes ──────────────────────────────
+  - source: eclipse_transition
+    target: pd1_theta_measured
+    weight: 0.70
+    mechanism: Eclipse causes all photo diodes to drop to near-zero.
+
+  - source: eclipse_transition
+    target: pd2_theta_measured
+    weight: 0.70
+    mechanism: Eclipse causes all photo diodes to drop to near-zero.
+
+  - source: eclipse_transition
+    target: pd3_theta_measured
+    weight: 0.70
+    mechanism: Eclipse causes all photo diodes to drop to near-zero.
+
+  - source: eclipse_transition
+    target: pd4_theta_measured
+    weight: 0.70
+    mechanism: Eclipse causes all photo diodes to drop to near-zero.
+
+  - source: eclipse_transition
+    target: pd5_theta_measured
+    weight: 0.70
+    mechanism: Eclipse causes all photo diodes to drop to near-zero.
+
+  - source: eclipse_transition
+    target: pd6_theta_measured
+    weight: 0.70
+    mechanism: Eclipse causes all photo diodes to drop to near-zero.
+
+  # ── Eclipse thermal effect on magnetometer ─────────────────────────────
+  - source: eclipse_transition
+    target: mag_x_measured
+    weight: 0.35
+    mechanism: >
+      Thermal transient during eclipse transition shifts magnetometer
+      bias slightly (secondary effect, much weaker than direct PD impact).
+
+  - source: eclipse_transition
+    target: mag_y_measured
+    weight: 0.35
+    mechanism: Thermal transient during eclipse affects Y-axis bias.
+
+  - source: eclipse_transition
+    target: mag_z_measured
+    weight: 0.35
+    mechanism: Thermal transient during eclipse affects Z-axis bias.
+
+# ===========================================================================
+# EXPECTED EVIDENCE
+# ===========================================================================
+# Maps root causes to the observable channels that should deviate when that
+# root cause is active. Used by RootCauseRanker for consistency scoring.
+
+expected_evidence:
+  magnetometer_bias:
+    - mag_x
+    - mag_y
+    - mag_z
+
+  magnetometer_failure:
+    - mag_x
+    - mag_y
+    - mag_z
+
+  photo_diode_degradation:
+    - pd1_theta
+    - pd2_theta
+    - pd3_theta
+    - pd4_theta
+    - pd5_theta
+    - pd6_theta
+
+  photo_diode_obstruction:
+    - pd1_theta
+    - pd2_theta
+    - pd3_theta
+    - pd4_theta
+    - pd5_theta
+    - pd6_theta
+
+  adcs_controller_fault:
+    - mag_x
+    - mag_y
+    - mag_z
+    - pd1_theta
+    - pd2_theta
+    - pd3_theta
+    - pd4_theta
+    - pd5_theta
+    - pd6_theta
+
+  external_magnetic_disturbance:
+    - mag_x
+    - mag_y
+    - mag_z
+
+  eclipse_transition:
+    - pd1_theta
+    - pd2_theta
+    - pd3_theta
+    - pd4_theta
+    - pd5_theta
+    - pd6_theta

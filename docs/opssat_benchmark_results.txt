@@ -1,0 +1,33 @@
+AETHELIX × OPSSAT-AD BENCHMARK RESULTS
+==================================================
+
+Dataset: OPSSAT-AD
+TP: 91  FP: 41  FN: 22  TN: 375
+
+Precision:  0.6894
+Recall:     0.8053
+F1 Score:   0.7429
+
+Detection time: 40.5s
+
+Per-channel results:
+  mag_x          TP= 24 FP=  7 FN=  8 TN= 93 P=0.774 R=0.750 F1=0.762
+  mag_y          TP= 27 FP= 12 FN=  4 TN=110 P=0.692 R=0.871 F1=0.771
+  mag_z          TP= 23 FP= 10 FN=  0 TN= 19 P=0.697 R=1.000 F1=0.821
+  pd1_theta      TP=  0 FP=  0 FN=  0 TN= 36 P=0.000 R=0.000 F1=0.000
+  pd2_theta      TP=  1 FP=  0 FN=  0 TN=  3 P=1.000 R=1.000 F1=1.000
+  pd3_theta      TP=  7 FP=  1 FN=  5 TN= 51 P=0.875 R=0.583 F1=0.700
+  pd4_theta      TP=  1 FP=  0 FN=  1 TN=  0 P=1.000 R=0.500 F1=0.667
+  pd5_theta      TP=  6 FP= 10 FN=  1 TN= 36 P=0.375 R=0.857 F1=0.522
+  pd6_theta      TP=  2 FP=  1 FN=  3 TN= 27 P=0.667 R=0.400 F1=0.500
+
+
+Comparison vs published baselines:
+  Method                    Precision     Recall         F1
+  ------------------------------------------------------
+  Aethelix ML (supervised)     0.689     0.805     0.743
+  Isolation Forest             0.700     0.740     0.720
+  LOF                          0.650     0.720     0.680
+  Random Forest                0.830     0.870     0.850
+  LSTM Autoencoder             0.750     0.810     0.780
+  Naive Threshold              1.000     0.018     0.035

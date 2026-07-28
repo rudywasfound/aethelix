@@ -20,12 +20,10 @@ import sys
 import os
 from pathlib import Path
 
-# Ensure repository root is in sys.path for robust imports
 repo_root = str(Path(__file__).resolve().parent.parent)
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
-# Global reproducibility seed as requested
 random.seed(42)
 np.random.seed(42)
 
@@ -225,7 +223,7 @@ class Benchmark:
         causal_ranks    = []
         baseline_ranks  = []
         threshold_ranks = []
-        categories      = []   # track category for detailed breakdown
+        categories      = []
 
         for trial in range(100):
 
@@ -244,12 +242,11 @@ class Benchmark:
             elif category == "D":         # sensor dropout
                 true_cause, kwargs = self._dropout_scenario()
 
-            else:                         # cascading ambiguity
+            else:
                 true_cause, kwargs = self._cascading_ambiguity_scenario()
 
             nominal, degraded = self.factory.build(**kwargs)
 
-            # Inject noise from kwargs if requested
             noise = kwargs.get("_noise", 0.0)
             if noise > 0:
                 for attr in ["solar_input","battery_voltage","battery_charge",
@@ -259,7 +256,6 @@ class Benchmark:
                         setattr(degraded, attr,
                                 _add_noise(getattr(degraded, attr), noise))
 
-            # Inject sensor dropout if requested
             dropout_channels = kwargs.get("_dropout_channels", [])
             dropout_prob     = kwargs.get("_dropout_prob", 0.0)
             for ch in dropout_channels:
@@ -286,10 +282,8 @@ class Benchmark:
         import matplotlib.pyplot as plt
         import os
 
-        # Ensure directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        # Calculate stats
         def top1(ranks): return sum(1 for r in ranks if r == 1) / len(ranks)
         def top3(ranks): return sum(1 for r in ranks if r <= 3) / len(ranks)
         def mean(ranks): return np.mean(ranks)
@@ -318,12 +312,10 @@ class Benchmark:
         table.set_fontsize(10)
         table.scale(1.2, 2.2)
         
-        # Color headers
         for i in range(4):
             table[(0, i)].set_facecolor("#2c3e50")
             table[(0, i)].set_text_props(color='w', weight='bold')
         
-        # Color separator
         for i in range(4):
             table[(4, i)].set_facecolor("#ecf0f1")
 
@@ -353,7 +345,7 @@ class Benchmark:
             "solar_degradation", "battery_aging",
             "battery_heatsink_failure", "panel_insulation_degradation",
         ])
-        severity = random.uniform(0.2, 0.85)   # 15–80 % loss
+        severity = random.uniform(0.2, 0.85)
         kwargs   = self._cause_to_kwargs(true_cause, severity)
         kwargs["_noise"] = random.uniform(0.01, 0.08)
         return true_cause, kwargs
@@ -373,19 +365,15 @@ class Benchmark:
 
     def _triple_fault_scenario(self):
         """3+ simultaneous faults with high noise (≥10 %)."""
-        # True cause is what we label. We make it the primary dominant fault.
         true_cause = random.choice([
             "solar_degradation", 
             "battery_heatsink_failure", 
             "panel_insulation_degradation"
         ])
         
-        # High severity for the labeled cause
         sev = random.uniform(0.65, 0.85)
         kwargs = self._cause_to_kwargs(true_cause, sev)
         
-        # Inject secondary "nuisance" faults at LOW severity
-        # solar_factor: 1.0 is nominal, 0.9 is 10% loss.
         if true_cause != "solar_degradation":
             kwargs["solar_factor"] = random.uniform(0.92, 0.98) 
         if true_cause != "battery_aging":
@@ -414,10 +402,8 @@ class Benchmark:
         """
         true_cause = "solar_degradation"
         kwargs = {
-            # Mild primary — only ~12% solar loss
             "solar_hour":    random.uniform(4, 7),
             "solar_factor":  random.uniform(0.85, 0.92),
-            # Severe thermal cascade (battery overtemp) triggered by subsystem coupling
             "cooling_hour":  random.uniform(9, 13),
             "cooling_factor":random.uniform(0.1, 0.3),   # catastrophic cooling loss
             "_noise": random.uniform(0.08, 0.15),
@@ -487,7 +473,6 @@ class Benchmark:
 
 
 
-    # Fault Severity Analysis
 
 
     def benchmark_fault_severity(self):
@@ -576,9 +561,9 @@ class Benchmark:
             "battery_heatsink_failure", "panel_insulation_degradation",
         ]
 
-        for _ in range(250):  # Increased from 150 for better bin coverage
+        for _ in range(250):
             true_cause = random.choice(true_causes_pool)
-            severity   = random.uniform(0.2, 0.95) # Wider range
+            severity   = random.uniform(0.2, 0.95)
             noise      = random.uniform(0.01, 0.22)
 
             kwargs = self._cause_to_kwargs(true_cause, severity)
@@ -598,7 +583,6 @@ class Benchmark:
             top = hyps[0]
             conf = top.confidence
 
-            # Clamp conf to [0,1] before binning
             conf = float(np.clip(conf, 0.0, 1.0))
             bin_idx = min(int(conf / 0.2), 4)
             bk = bin_keys[bin_idx]
@@ -619,7 +603,6 @@ class Benchmark:
 
         print("\nNote: good calibration means Mean Conf ≈ Actual Acc in each bin.")
 
-    # convenience: cause_to_kwargs (static alias for calibration)
     @staticmethod
     def _cause_to_kwargs(cause: str, severity: float) -> dict:
         if cause == "solar_degradation":

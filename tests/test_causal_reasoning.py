@@ -34,7 +34,6 @@ class TestCausalGraph(unittest.TestCase):
 
     def test_get_parents_and_children(self):
         """Test parent/child traversal."""
-        # Test a middle node
         if "battery_state" in self.graph.nodes:
             parents = self.graph.get_parents("battery_state")
             children = self.graph.get_children("battery_state")
@@ -49,7 +48,6 @@ class TestCausalGraph(unittest.TestCase):
 
         self.assertGreater(len(paths), 0)
 
-        # Each path should end at a root cause or have depth > 1
         for path in paths:
             self.assertGreater(len(path), 1, "Paths should have at least 2 nodes")
 
@@ -109,7 +107,7 @@ class TestRootCauseRanker(unittest.TestCase):
         degraded = self.sim.run_degraded(
             solar_degradation_hour=3.0,
             solar_factor=0.6,
-            battery_degradation_hour=999.0,  # Disable battery degradation
+            battery_degradation_hour=999.0,
         )
 
         hypotheses = self.ranker.analyze(nominal, degraded)
@@ -121,7 +119,6 @@ class TestRootCauseRanker(unittest.TestCase):
             "Solar degradation should be detected",
         )
 
-        # Should be top cause
         top_hypothesis = hypotheses[0]
         self.assertEqual(
             top_hypothesis.name,
@@ -133,7 +130,7 @@ class TestRootCauseRanker(unittest.TestCase):
         """Test that battery aging is detected and ranked."""
         nominal = self.sim.run_nominal()
         degraded = self.sim.run_degraded(
-            solar_degradation_hour=999.0,  # Disable solar degradation
+            solar_degradation_hour=999.0,
             battery_degradation_hour=3.0,
             battery_factor=0.7,
         )

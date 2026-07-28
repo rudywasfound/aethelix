@@ -23,7 +23,6 @@ import os
 import sys
 from pathlib import Path
 
-# Allow running from repo root or from scripts/
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
@@ -38,7 +37,7 @@ Examples:
   python scripts/run_aethelix.py --config configs/gsat6a.yaml
   python scripts/run_aethelix.py --config configs/sentinel1b.yaml --validate-only
   python scripts/run_aethelix.py --config configs/cubesat_3u.yaml --output-dir out/cubesat/
-  python scripts/run_aethelix.py          # uses built-in GSAT-6A Python graph
+  python scripts/run_aethelix.py
         """,
     )
     parser.add_argument(
@@ -98,7 +97,6 @@ def _print_graph_summary(graph, source: str) -> None:
     intermediates = [n for n, node in graph.nodes.items() if node.node_type == NodeType.INTERMEDIATE]
     observables   = [n for n, node in graph.nodes.items() if node.node_type == NodeType.OBSERVABLE]
 
-    # Meta block (only available on YAML-loaded graphs)
     meta = getattr(graph, "dag_meta", {})
     sat  = meta.get("satellite", {})
 
@@ -153,9 +151,6 @@ def main() -> None:
         print("[OK] Validation passed. Exiting (--validate-only mode).")
         return
 
-    # ------------------------------------------------------------------ #
-    # Full simulation + inference pipeline                                 #
-    # ------------------------------------------------------------------ #
     print("\n[1] Initializing simulators...")
     from simulator.power   import PowerSimulator
     from simulator.thermal import ThermalSimulator

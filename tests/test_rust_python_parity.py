@@ -20,15 +20,12 @@ def test_path_parity():
     print("Running Rust vs Python path traversal parity test...")
     graph = CausalGraph()
 
-    # Get a complex observable node that traces back to multiple root causes
     test_node = "bus_voltage_measured"
 
-    # 1. Get paths using Rust
     start = time.time()
     rust_paths = graph.get_weighted_paths_to_root(test_node, max_depth=10)
     rust_time = time.time() - start
 
-    # 2. Disable Rust and clear cache to get Python times
     graph.rust_graph = None
     if hasattr(graph, '_path_cache'):
         graph._path_cache.clear()
@@ -37,12 +34,10 @@ def test_path_parity():
     python_paths = graph.get_weighted_paths_to_root(test_node, max_depth=10)
     python_time = time.time() - start
 
-    # 3. Check cache hit time
     start = time.time()
     cached_paths = graph.get_weighted_paths_to_root(test_node, max_depth=10)
     cached_time = time.time() - start
 
-    # Sort paths for comparison
     def sort_key(p):
         return (p[0], p[1])
         

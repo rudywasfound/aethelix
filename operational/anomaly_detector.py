@@ -35,7 +35,6 @@ def fast_ks_2samp(data1: np.ndarray, data2: np.ndarray) -> Tuple[float, float]:
     d = np.max(np.abs(cdf1 - cdf2))
     
     en = np.sqrt(n1 * n2 / (n1 + n2))
-    # Asymptotic approximation of the true KS p-value formula (with Stephen's modification)
     z = (en + 0.12 + 0.11 / en) * d
     pval = 2 * np.exp(-2.0 * z ** 2)
     return d, min(float(pval), 1.0)
@@ -71,8 +70,6 @@ class SlidingWindowDetector:
         ref_size: int = 128,
         p_threshold: float = 0.005,
         persist: int = 4,
-        # Legacy Z-score fallback (used when ref window not yet filled)
-        # 5.0 ≈ 1-in-3.5M chance of spurious trigger on Gaussian noise
         z_threshold: float = 5.0,
         max_z: float = 8.0,
     ):
@@ -83,13 +80,10 @@ class SlidingWindowDetector:
         self.z_threshold = z_threshold
         self.max_z = max_z
 
-        # Rolling buffers per channel
         self.cur_windows: Dict[str, deque] = {}
         self.ref_windows: Dict[str, deque] = {}
 
-        # Consecutive-alarm counters (persistence requirement)
         self._alarm_streak: Dict[str, int] = {}
-        # Track whether an FP event is already open (for event-level counting)
         self._in_alarm: Dict[str, bool] = {}
 
     def process_tick(self, row: dict) -> Dict[str, float]:
@@ -109,29 +103,30 @@ class SlidingWindowDetector:
             ):
                 continue
 
-            # Strip trailing measurement suffixes (_measured, _observed …)
-            # to canonicalize to the physical quantity name
             key = raw_key
             for suffix in ("_measured", "_observed"):
                 if raw_key.endswith(suffix):
                     key = raw_key[: -len(suffix)]
                     break
 
-            # Eclipse suppression — solar_input is dominated by a strong
-            # orbital sinusoid: (1+cos(2π·t/T))/2. The KS-test cannot
-            # distinguish the orbital ramp-down from a genuine solar fault
-            # because both look like distribution shifts in the current window.
-            # Solar degradation faults ARE detectable — by their downstream
-            # effect on battery_charge and bus_voltage, which the causal graph
-            # correctly identifies. We therefore suppress solar_input and
-            # solar_panel_temp across the full ramp (phase 0.10–0.90) and watch
-            # the orbit-coupled effect via battery/bus channels instead.
             SOLAR_DIRECT = ("solar_input", "solar_panel_temp")
-            if 0.10 <= phase <= 0.90 and key in SOLAR_DIRECT:
+            is_photo_diode = key.startswith("pd") and key.endswith("theta")
+            
+            if (0.10 <= phase <= 0.90 and key in SOLAR_DIRECT) or (is_photo_diode and val < 0.01):
                 self._alarm_streak[key] = 0
+                
+                if key not in self.cur_windows:
+                    self.cur_windows[key] = deque(maxlen=self.window_size)
+                    self.ref_windows[key] = deque(maxlen=self.ref_size)
+                    self._in_alarm[key] = False
+                    
+                cur_q = self.cur_windows[key]
+                ref_q = self.ref_windows[key]
+                cur_q.append(val)
+                if len(cur_q) % 2 == 0:
+                    ref_q.append(val)
                 continue
 
-            # Initialise buffers
             if key not in self.cur_windows:
                 self.cur_windows[key] = deque(maxlen=self.window_size)
                 self.ref_windows[key] = deque(maxlen=self.ref_size)
@@ -141,14 +136,11 @@ class SlidingWindowDetector:
             cur_q = self.cur_windows[key]
             ref_q = self.ref_windows[key]
 
-            # Anomaly test
             if len(cur_q) >= self.window_size and len(ref_q) >= 20:
-                # Primary: Fast KS distribution-shift test
                 _, pval = fast_ks_2samp(list(ref_q), list(cur_q))
                 is_anomalous = pval < self.p_threshold
 
                 if not is_anomalous:
-                    # Secondary: Z-score spike on latest value vs reference mean
                     ref_arr = np.array(ref_q)
                     mean, std = ref_arr.mean(), max(ref_arr.std(), 1e-6)
                     z = abs(val - mean) / std
@@ -158,20 +150,14 @@ class SlidingWindowDetector:
                 if is_anomalous:
                     self._alarm_streak[key] = self._alarm_streak.get(key, 0) + 1
                     if self._alarm_streak[key] >= self.persist:
-                        # Severity = –log10(pval) normalised, clamped to [0,1]
                         raw_sev = min(1.0, -np.log10(max(pval, 1e-10)) / 10.0)
                         anomalies[key] = raw_sev
-                        # Don't add anomalous sample to reference baseline
                         continue
                 else:
                     self._alarm_streak[key] = 0
                     self._in_alarm[key] = False
 
-            # Normal sample — advance both windows
             cur_q.append(val)
-            # Reference window updates every 2 ticks (faster than before) so it
-            # tracks slow orbital drift in battery/bus channels without absorbing
-            # transient anomaly spikes (which are excluded above via `continue`).
             if len(cur_q) % 2 == 0:
                 ref_q.append(val)
 
@@ -217,7 +203,6 @@ class CycleLevelDetector:
         if not self.ref_samples:
             return False
 
-        # KS 2-sample test: current cycle's curve vs. healthy reference stack
         _, p_val = fast_ks_2samp(np.array(self.ref_samples), curve)
 
         if p_val < self.p_threshold:
